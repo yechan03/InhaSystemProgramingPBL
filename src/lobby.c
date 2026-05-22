@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <termios.h>
 #include "account.h"
 
 static void read_line(char *buf, size_t n) {
@@ -12,16 +10,10 @@ static void read_line(char *buf, size_t n) {
 }
 
 static void read_password(char *buf, size_t n) {
-    struct termios oldt, newt;
-    int has_tty = (tcgetattr(STDIN_FILENO, &oldt) == 0);
-    if (has_tty) {
-        newt = oldt;
-        newt.c_lflag &= ~(tcflag_t)ECHO;
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    }
+    int echo_off = (system("stty -echo 2>/dev/null") == 0);
     read_line(buf, n);
-    if (has_tty) {
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    if (echo_off) {
+        system("stty echo 2>/dev/null");
         printf("\n");
     }
 }
