@@ -1,0 +1,22 @@
+# 빌드 산출물
+bin/
+*.o
+*.a
+*.out
+a.out
+
+# 사용자 데이터 (로컬에서만 보관, 저장소에 올리지 않음)
+data/*.txt
+
+# 에디터 / OS 잔여 파일
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 코어 덤프 / 디버깅 산출물
+core
+*.dSYM/
+*.gdb_history
