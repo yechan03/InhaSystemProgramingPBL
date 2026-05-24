@@ -53,8 +53,7 @@ static int do_login(char *out_user, size_t n) {
     printf("비밀번호 : "); read_password(pw, sizeof(pw));
 
     if (account_login(id, pw) == 0) {
-        strncpy(out_user, id, n - 1);
-        out_user[n - 1] = '\0';
+        snprintf(out_user, n, "%s", id);
         printf("[OK] 환영합니다, %s 님!\n", out_user);
         return 0;
     }
