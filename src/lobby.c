@@ -81,16 +81,27 @@ static void lobby_menu(const char *user) {
         }
         else if(sel == 1){
             printf("[System] 게임 프로세스를 생성합니다...\n");
+
+            // 부모와 자식 간의 실행 실패 공유를 위한 파이프 생성
+            int exec_pipe[2];
+            if (pipe(exec_pipe) < 0) {
+                perror("[X] Pipe 생성 실패");
+                continue;
+            }
             
             // 자식 프로세스 생성
             pid_t pid = fork(); 
 
             if (pid < 0) {
                 perror("[X] Fork 실패");
+                close(exec_pipe[0]);
+                close(exec_pipe[1]);
                 continue;
             } 
             else if (pid == 0) {
                 // =========== 자식 프로세스 영역 ===========
+                close(exec_pipe[0]); // 읽기 전용 포트는 닫음
+                
                 char game_path[32];
                 char game_name[16];
                 
@@ -102,17 +113,37 @@ static void lobby_menu(const char *user) {
                 // 플레이어 ID를 넘겨서 게임 내에서 개인 데이터를 인식
                 execl(game_path, game_name, user, NULL);
 
-                // execl이 실패했을 경우 (바이너리가 없을 때)
-                perror("[X] 게임 실행 실패 (바이너리 파일 없음)");
+                // execl이 실패했을 경우 
+                int error_signal = 1;
+                // 부모에게 실행 실패 신호(1)를 파이프로 전송
+                write(exec_pipe[1], &error_signal, sizeof(error_signal));
+                close(exec_pipe[1]);
+                
+                perror("[X] 게임 실행 실패");
                 exit(-1);
             } 
             else {
                 // =========== 부모 프로세스 영역 ===========
+                close(exec_pipe[1]); // 쓰기 전용 포트는 닫음
+
+                int error_signal = 0;
+                // 자식이 execl에 실패하여 파이프에 값을 썼는지 확인
+                int nbytes = read(exec_pipe[0], &error_signal, sizeof(error_signal));
+                close(exec_pipe[0]);
+                
                 int status;
                 // 자식 프로세스가 종료될 때까지 대기
                 wait(&status); 
 
-                if (WIFEXITED(status)) {
+                while (getchar() != '\n' && getchar() != EOF); 
+
+                // 파이프를 통해 자식이 execl에 실패한 것이 확인된 경우
+                if (nbytes > 0 && error_signal == 1) {
+                    printf("\n[X] 오류: 게임 프로그램 파일이 존재하지 않거나 실행할 수 없습니다.\n");
+                    printf("[INFO] scripts/build.sh 를 실행하여 게임 바이너리를 생성하세요.\n");
+                } 
+                // 자식이 정상적으로 execl을 거쳐 게임을 플레이하고 종료된 경우
+                else if (WIFEXITED(status)) {
                     // 게임이 exit(score)로 남긴 점수를 가져오기
                     int game_score = WEXITSTATUS(status);
                     printf("\n=========================================\n");
