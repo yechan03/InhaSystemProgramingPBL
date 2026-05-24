@@ -16,7 +16,7 @@ $CC $CFLAGS $SRC -o bin/lobby
 echo "[OK] bin/lobby 생성 완료"
 
 # 2. 게임 빌드 산출물 위치
-if [ -f src/game1.c ]; then
-    $CC $CFLAGS src/game1.c -o games/game1
+if [ -f games/game1.c ]; then
+    $CC $CFLAGS games/game1.c -o games/game1
     echo "[OK] games/game1 생성 완료"
 fi
