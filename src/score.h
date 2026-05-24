@@ -1,6 +1,8 @@
 #ifndef SCORE_H
 #define SCORE_H
 
+#include <stddef.h>   /* size_t */
+
 #define SCORE_FILE "data/scores.txt"
 
 void get_current_time_str(char *buf, size_t max_size);

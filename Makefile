@@ -1,6 +1,6 @@
 CC      ?= gcc
 CFLAGS  ?= -std=c99 -Wall -Wextra -O2 -Isrc
-SRC      = src/lobby.c src/account.c
+SRC      = src/lobby.c src/account.c src/score.c
 BIN      = bin/lobby
 
 .PHONY: all run clean init
