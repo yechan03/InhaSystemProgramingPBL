@@ -5,6 +5,8 @@ cd "$(dirname "$0")/.."
 
 mkdir -p data bin
 [ -f data/accounts.txt ] || : > data/accounts.txt
+[ -f data/scores.txt ] || : > data/scores.txt
 
 echo "[OK] 초기화 완료"
 echo "  - data/accounts.txt"
+exho "  - data/scores.txt"
