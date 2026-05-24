@@ -3,6 +3,12 @@
 #include <string.h>
 #include "account.h"
 
+#include <unistd.h>// fork(), execl() 함수 원형이 들어있는 헤더
+#include <sys/types.h>// pid_t 자료형 정의가 들어있는 헤더
+#include <sys/wait.h>// wait(), WIFEXITED, WEXITSTATUS 매크로가 들어있는 헤더
+// 세 헤더 모두 강의노트에서 사용한 헤더(수업시간에 물어보고 사용 불가능하다고 하면 수정할 것)
+#include "score.h"
+
 static void read_line(char *buf, size_t n) {
     if (!fgets(buf, (int)n, stdin)) { buf[0] = '\0'; return; }
     size_t l = strlen(buf);
@@ -60,6 +66,8 @@ static void lobby_menu(const char *user) {
     while (1) {
         printf("\n----- [ 로비 ] 사용자: %s -----\n", user);
         printf(" (미니게임 기능은 팀 협의 후 추가 예정)\n");
+        printf(" 1) Game1(Dummy)");
+        printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
 
@@ -71,7 +79,59 @@ static void lobby_menu(const char *user) {
             printf("[INFO] 로그아웃 되었습니다.\n");
             return;
         }
-        printf("[X] 잘못된 선택입니다.\n");
+        else if(sel == 1){
+            printf("[System] 게임 프로세스를 생성합니다...\n");
+            
+            // 자식 프로세스 생성
+            pid_t pid = fork(); 
+
+            if (pid < 0) {
+                perror("[X] Fork 실패");
+                continue;
+            } 
+            else if (pid == 0) {
+                // =========== 자식 프로세스 영역 ===========
+                char game_path[32];
+                char game_name[16];
+                
+                // 실행 파일 경로 규칙 지정 (예: games/game1)
+                sprintf(game_path, "games/game%d", sel);
+                sprintf(game_name, "game%d", sel);
+
+                // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
+                // 플레이어 ID를 넘겨서 게임 내에서 개인 데이터를 인식
+                execl(game_path, game_name, user, NULL);
+
+                // execl이 실패했을 경우 (바이너리가 없을 때)
+                perror("[X] 게임 실행 실패 (바이너리 파일 없음)");
+                exit(-1);
+            } 
+            else {
+                // =========== 부모 프로세스 영역 ===========
+                int status;
+                // 자식 프로세스가 종료될 때까지 대기
+                wait(&status); 
+
+                if (WIFEXITED(status)) {
+                    // 게임이 exit(score)로 남긴 점수를 가져오기
+                    int game_score = WEXITSTATUS(status);
+                    printf("\n=========================================\n");
+                    printf("[OK] 게임이 정상 종료되었습니다.\n");
+                    printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, game_score);
+                    printf("=========================================\n");
+                    
+                    save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
+                } else {
+                    printf("\n[X] 경고: 게임 프로세스가 비정상적으로 종료되었습니다.\n");
+                }
+            }
+        }
+        else if(sel == 9){
+            show_leaderboard();// leader board를 보여주는 함수(score.h에 포함)
+        }
+        else{
+            printf("[X] 잘못된 선택입니다.\n");
+        }
     }
 }
 
