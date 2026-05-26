@@ -53,3 +53,57 @@ chmod +x games/game_bash.sh
 
 
 
+
+# VI-RPG
+
+A terminal-based RPG mini-game implemented in `bash`.  
+Progress through a 13x21 dungeon by defeating goblins and the boss.
+
+## How to Run
+
+From the project root:
+
+```sh
+bash games/game_bash.sh
+```
+
+Or grant execute permission first:
+
+```sh
+chmod +x games/game_bash.sh
+./games/game_bash.sh
+```
+
+## Controls
+
+| Key      | Action                  |
+| -------- | ----------------------- |
+| `w`      | Move up                 |
+| `a`      | Move left               |
+| `s`      | Move down               |
+| `d`      | Move right              |
+| `SPACE`  | Attack adjacent 4 directions |
+| `e`      | Area skill (3x3 range)  |
+| `q`      | Quit game               |
+
+## Tile Description
+
+| Symbol   | Meaning                 |
+| -------- | ----------------------- |
+| `♥`      | Player                  |
+| `1/2/3`  | Goblin (HP 3)           |
+| `B`      | Boss (HP 10)            |
+| `H`      | Shop (HP recovery)      |
+| `♣ / ♠`  | Trees (impassable)      |
+| `█`      | Wall (impassable)       |
+| `.`      | Empty traversable tile  |
+
+## Game Rules
+
+- Initial stats: HP 5, ATK 2
+- Contact with a goblin: HP -1
+- Contact with the boss: HP -2
+- Gold +5 for each monster defeated
+- Level-up ATK increases after reaching 1, 3, and 6 kills
+- Defeat the boss (`B`) to clear the game
+- Game over when HP reaches 0
