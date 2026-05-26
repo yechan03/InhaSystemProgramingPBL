@@ -173,3 +173,228 @@ yechan:13795222493806861027
   #1  | yechan         |   80         | 2026-05-24 15:02:45
 =======================================================
 ```
+
+
+# System Programming PBL
+
+System Programming PBL project from Inha University.  
+A personal account management + mini-game integrated lobby implemented using only the C standard library and `sh` scripts.
+
+## Project Structure
+
+```text
+InhaSystemProgramingPBL/
+├── Makefile                # Build configuration (gcc + C99)
+├── README.md
+├── .gitignore
+│
+├── src/                    # C source code
+│   ├── account.h           # Account module interface
+│   ├── account.c           # Sign-up / login / hashing
+│   ├── score.h             # Score & ranking module interface
+│   ├── score.c             # High-score comparison & update / time operations / leaderboard output
+│   └── lobby.c             # Main menu and lobby entry point (main)
+│
+├── scripts/                # Build & execution shell scripts
+│   ├── init.sh             # Creates data/ directory and empty files
+│   ├── build.sh            # gcc compilation → bin/lobby
+│   ├── run.sh              # Build and execute
+│   └── clean.sh            # Cleans bin/ (preserves data/)
+│
+├── data/                   # Runtime data (excluded from git tracking)
+│   ├── accounts.txt        # Account storage in username:hash format
+│   └── scores.txt          # Score storage in game_num:username:score:time format
+│
+├── bin/                    # Build artifacts (excluded from git tracking)
+│   └── lobby               # Compiled executable
+│
+└── games/                  # [Additional] Standalone mini-game binary repository
+    └── game1               # Compiled executable for mini-game #1
+```
+
+## Directory Roles
+
+| Directory   | Purpose |
+| ---------- | ------------------------------------------ |
+| `src/`     | C source/header files. Contains all implementation code |
+| `scripts/` | Shell scripts (build, run, initialize, clean) |
+| `data/`    | User data storage (accounts, etc.). Local-only |
+| `games/`   | Collection of game binaries executed as independent processes |
+| `bin/`     | gcc build artifacts. Removed by `make clean` |
+
+## Libraries Used
+
+Only the C standard library is used:
+
+- `<stdio.h>`  — File I/O (`fopen`, `fprintf`, `fgets`, etc.)
+- `<stdlib.h>` — `system()`, `strtoul`, `atoi`
+- `<string.h>` — String processing
+- `<time.h>`   — System time operations and formatting (`time`, `localtime`, `strftime`)
+
+Password echo suppression is implemented using `system("stty -echo")` without POSIX-specific headers.
+
+## Build / Run
+
+```sh
+chmod +x scripts/*.sh         # First-time setup
+./scripts/run.sh              # Build + run
+
+# or
+make run
+```
+
+## Data File Formats
+
+`data/accounts.txt`:
+```text
+username:hashvalue
+```
+
+One account per line. Passwords are stored using a modified djb2 hash combined with username-based salting.
+
+`data/scores.txt`:
+```text
+game_number:username:high_score:timestamp
+```
+
+One high-score record per line.  
+Whenever a game ends, the current score is compared against the existing best score in real time. The record is dynamically updated only if a higher score is achieved, together with the current Linux system timestamp.
+
+## Password Storage Method (Hashing)
+
+This project stores passwords using **hashing**, not encryption.
+
+| Category | Encryption | Hashing (Used in This Project) |
+| --------- | -------------------------- | ------------------------------ |
+| Direction | Two-way (decryptable)      | One-way (irreversible)         |
+| Key       | Required                   | None                           |
+| Purpose   | Keeping secrets in storage/communication | Identity verification (= password validation) |
+
+Since passwords only need to be verified — not restored — hashing is the correct approach. Storing plaintext or reversibly encrypted passwords would expose all credentials if the server were compromised.
+
+### Hash Algorithm (`hash_credential` in `src/account.c`)
+
+A XOR-variant of djb2 is used, with the username mixed in as a salt.
+
+```text
+Initial value h = 5381
+
+For each character in username:
+    h = (h * 33) ^ char      // (h << 5) + h == h * 33
+
+Separator ':':
+    h = (h * 33) ^ ':'
+
+For each character in password:
+    h = (h * 33) ^ char
+
+Final h (unsigned long, 64-bit)
+→ stored as a decimal string
+```
+
+### Execution Trace Example (`yechan` / `1234`)
+
+Step-by-step flow of:
+
+```c
+hash_credential("yechan", "1234")
+```
+
+during account registration:
+
+```text
+Initial value:
+    h = 5381
+
+Processing "yechan":
+  'y' 121 → h = (h * 33) ^ 121
+  'e' 101 → h = (h * 33) ^ 101
+  'c'  99 → h = (h * 33) ^  99
+  'h' 104 → h = (h * 33) ^ 104
+  'a'  97 → h = (h * 33) ^  97
+  'n' 110 → h = (h * 33) ^ 110
+
+Separator ':':
+    h = (h * 33) ^ 58
+
+Processing "1234":
+  '1'  49 → h = (h * 33) ^ 49
+  '2'  50 → h = (h * 33) ^ 50
+  '3'  51 → h = (h * 33) ^ 51
+  '4'  52 → h = (h * 33) ^ 52
+
+Final result:
+    h = 13795222493806861027
+    (unsigned long, 64-bit)
+```
+
+> `(h << 5) + h == h * 33` — the classic djb2 optimization using bit-shifting and addition instead of multiplication. This project uses a XOR (`^`) variant instead of the original `+` version.
+
+Stored result (`data/accounts.txt`):
+
+```text
+yechan:13795222493806861027
+```
+
+During login, the system recomputes:
+
+```c
+hash_credential("yechan", input_password)
+```
+
+and simply compares the resulting integer with the stored value. The original plaintext password is never stored anywhere on disk.
+
+### Multi-Process-Based Game Execution & Exception Handling
+
+This project mimics the architecture of large-scale arcade platforms by isolating the main lobby framework and each mini-game into independent processes.
+
+#### 1. Process Forking & Replacement (`fork` & `execl`)
+
+When a user selects a mini-game from the lobby, the lobby creates a child process using `fork()`.
+
+The child process locates an independent executable such as `games/game1` and calls `execl()` to completely replace its own memory space with the mini-game program.
+
+The currently authenticated user's ID (`username`) is securely passed as a program argument (`argv[1]`) to preserve in-game integrity.
+
+#### 2. Missing Executable Exception Handling Using `pipe`
+
+To handle situations where `execl()` fails (for example, when the game binary is missing or not compiled), an anonymous pipe (`pipe`) is created immediately before `fork()`.
+
+If `execl()` fails, the child process writes an error signal into the pipe and exits immediately.
+
+The parent process monitors this pipe signal to accurately detect missing game files. This completely prevents collision bugs where a legitimate game termination could mistakenly be interpreted as an execution failure.
+
+#### 3. Score Retrieval via Exit Codes (`wait` & `WEXITSTATUS`)
+
+When the mini-game terminates normally using:
+
+```c
+exit(final_score);
+```
+
+the parent process waits at the kernel level using:
+
+```c
+wait(&status);
+```
+
+and safely retrieves the score left by the terminated child process through:
+
+```c
+WEXITSTATUS(status)
+```
+
+### High Score & Leaderboard Output Format
+
+When the user requests ranking information from the lobby menu, the program uses C standard `printf` format specifiers to render a readable terminal dashboard:
+
+```text
+=======================================================
+               INHA ARCADE LEADERBOARD
+=======================================================
+ GAME |   PLAYER ID    |  HIGH SCORE  |     DATE TIME
+-------------------------------------------------------
+  #1  | GD_Rowl        |   95         | 2026-05-24 14:36:12
+  #1  | yechan         |   80         | 2026-05-24 15:02:45
+=======================================================
+```
