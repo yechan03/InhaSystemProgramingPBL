@@ -39,11 +39,16 @@ if [ -z "$EVENTS" ]; then
     exit 1
 fi
 
-# GitHub 응답에서 "type":"..." 와 "created_at":"..." 만 순서대로 뽑은 뒤,
-# awk 에서 가장 최근에 본 type 이 PushEvent 인 created_at 만 채택한다.
-# (payload/actor 등 중첩 객체에 다른 콜론·콤마가 섞여 있어도 영향 없음)
+# 디버그: 응답 크기 / 전체 PushEvent 개수 / rate-limit 메시지 여부
+RESP_LEN=${#EVENTS}
+RAW_PUSH=$(printf '%s' "$EVENTS" | grep -c '"PushEvent"')
+RATE_LIMIT=$(printf '%s' "$EVENTS" | grep -c 'rate limit')
+echo "[github_stats] resp_len=$RESP_LEN raw_push_count=$RAW_PUSH rate_limit_hits=$RATE_LIMIT" >&2
+
+# GitHub 응답이 compact(`"type":"..."`) 또는 pretty(`"type": "..."`) 어느 쪽이든 매칭.
+# `:` 양옆 공백 0~N 개 허용.
 DATES=$(printf '%s' "$EVENTS" \
-    | grep -oE '"type":"[^"]+"|"created_at":"[^"]+"' \
+    | grep -oE '"(type|created_at)"[[:space:]]*:[[:space:]]*"[^"]+"' \
     | awk -F'"' '
         $2 == "type" { last = $4 }
         $2 == "created_at" && last == "PushEvent" {
