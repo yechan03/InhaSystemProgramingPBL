@@ -59,31 +59,58 @@ int account_exists(const char *id) {
     return 0;
 }
 
-int account_register(const char *id, const char *pw) {
-    if (id[0] == '\0' || pw[0] == '\0') return -3;
-    if (strchr(id, ':') || strchr(id, '\n')) return -3;
-    if (!valid_github_username(id)) return -3;
-    if (account_exists(id))         return -1;
-    if (!github_user_exists(id))    return -4;
+int account_register(const char *id, const char *pw, const char *github) {
+    if (id[0] == '\0' || pw[0] == '\0' || github[0] == '\0') return -3;
+    if (strchr(id, ':') || strchr(id, '\n'))         return -3;
+    if (strchr(github, ':') || strchr(github, '\n')) return -3;
+    if (!valid_github_username(github))              return -3;
+    if (account_exists(id))                          return -1;
+    if (!github_user_exists(github))                 return -4;
 
     FILE *fp = fopen(ACCOUNT_FILE, "a");
     if (!fp) return -2;
-    fprintf(fp, "%s:%lu\n", id, hash_credential(id, pw));
+    fprintf(fp, "%s:%lu:%s\n", id, hash_credential(id, pw), github);
     fclose(fp);
     return 0;
 }
 
-int account_login(const char *id, const char *pw) {
+int account_login(const char *id, const char *pw, char *github_out, size_t n) {
     FILE *fp = fopen(ACCOUNT_FILE, "r");
     if (!fp) return -1;
     unsigned long target = hash_credential(id, pw);
     char line[256];
+
+    if (github_out && n > 0) github_out[0] = '\0';
+
     while (fgets(line, sizeof(line), fp)) {
+        /* 줄 끝 개행 제거 */
+        size_t llen = strlen(line);
+        while (llen > 0 && (line[llen - 1] == '\n' || line[llen - 1] == '\r')) {
+            line[--llen] = '\0';
+        }
+
         char *colon = strchr(line, ':');
         if (!colon) continue;
         *colon = '\0';
-        unsigned long stored = strtoul(colon + 1, NULL, 10);
+
+        char *hash_str   = colon + 1;
+        char *github_str = NULL;
+        char *colon2     = strchr(hash_str, ':');
+        if (colon2) {
+            *colon2 = '\0';
+            github_str = colon2 + 1;
+        }
+
+        unsigned long stored = strtoul(hash_str, NULL, 10);
         if (strcmp(line, id) == 0 && stored == target) {
+            if (github_out && n > 0) {
+                if (github_str && github_str[0]) {
+                    snprintf(github_out, n, "%s", github_str);
+                } else {
+                    /* 구버전 2필드 계정 폴백 : id 를 github 로 가정 */
+                    snprintf(github_out, n, "%s", id);
+                }
+            }
             fclose(fp);
             return 0;
         }

@@ -30,7 +30,7 @@ if ! command -v curl >/dev/null 2>&1; then
     exit 2
 fi
 
-EVENTS=$(curl -s --max-time 5 \
+EVENTS=$(curl -s --max-time 10 \
     "https://api.github.com/users/$USER/events/public" 2>/dev/null)
 
 if [ -z "$EVENTS" ]; then
@@ -39,18 +39,22 @@ if [ -z "$EVENTS" ]; then
     exit 1
 fi
 
-# JSON 을 콤마/괄호 기준으로 줄단위로 풀어 PushEvent 다음 created_at 만 추출한다.
-# GitHub 응답은 { "type":"PushEvent", ..., "created_at":"YYYY-MM-DD..." } 구조라
-# type 이 created_at 보다 먼저 등장한다는 사실에 의존한다.
-DATES=$(printf '%s' "$EVENTS" | tr ',{}[]' '\n' | awk '
-    /"type":"PushEvent"/ { want=1; next }
-    want && /"created_at":/ {
-        if (match($0, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
-            print substr($0, RSTART, 10)
-            want=0
+# 디버그: 응답 크기 / 전체 PushEvent 개수 / rate-limit 메시지 여부
+RESP_LEN=${#EVENTS}
+RAW_PUSH=$(printf '%s' "$EVENTS" | grep -c '"PushEvent"')
+RATE_LIMIT=$(printf '%s' "$EVENTS" | grep -c 'rate limit')
+echo "[github_stats] resp_len=$RESP_LEN raw_push_count=$RAW_PUSH rate_limit_hits=$RATE_LIMIT" >&2
+
+# GitHub 응답이 compact(`"type":"..."`) 또는 pretty(`"type": "..."`) 어느 쪽이든 매칭.
+# `:` 양옆 공백 0~N 개 허용.
+DATES=$(printf '%s' "$EVENTS" \
+    | grep -oE '"(type|created_at)"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | awk -F'"' '
+        $2 == "type" { last = $4 }
+        $2 == "created_at" && last == "PushEvent" {
+            print substr($4, 1, 10)
         }
-    }
-')
+    ')
 
 if [ -z "$DATES" ]; then
     echo "$DEFAULT_DAYS"
