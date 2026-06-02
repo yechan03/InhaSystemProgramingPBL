@@ -30,7 +30,7 @@ if ! command -v curl >/dev/null 2>&1; then
     exit 2
 fi
 
-EVENTS=$(curl -s --max-time 5 \
+EVENTS=$(curl -s --max-time 10 \
     "https://api.github.com/users/$USER/events/public" 2>/dev/null)
 
 if [ -z "$EVENTS" ]; then
@@ -39,18 +39,17 @@ if [ -z "$EVENTS" ]; then
     exit 1
 fi
 
-# JSON 을 콤마/괄호 기준으로 줄단위로 풀어 PushEvent 다음 created_at 만 추출한다.
-# GitHub 응답은 { "type":"PushEvent", ..., "created_at":"YYYY-MM-DD..." } 구조라
-# type 이 created_at 보다 먼저 등장한다는 사실에 의존한다.
-DATES=$(printf '%s' "$EVENTS" | tr ',{}[]' '\n' | awk '
-    /"type":"PushEvent"/ { want=1; next }
-    want && /"created_at":/ {
-        if (match($0, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
-            print substr($0, RSTART, 10)
-            want=0
+# GitHub 응답에서 "type":"..." 와 "created_at":"..." 만 순서대로 뽑은 뒤,
+# awk 에서 가장 최근에 본 type 이 PushEvent 인 created_at 만 채택한다.
+# (payload/actor 등 중첩 객체에 다른 콜론·콤마가 섞여 있어도 영향 없음)
+DATES=$(printf '%s' "$EVENTS" \
+    | grep -oE '"type":"[^"]+"|"created_at":"[^"]+"' \
+    | awk -F'"' '
+        $2 == "type" { last = $4 }
+        $2 == "created_at" && last == "PushEvent" {
+            print substr($4, 1, 10)
         }
-    }
-')
+    ')
 
 if [ -z "$DATES" ]; then
     echo "$DEFAULT_DAYS"
