@@ -1,27 +1,29 @@
 /*
- * game2 : GitHub Tamagotchi (다마고치)
+ * game2 : GitHub Tamagotchi (real-time mirror)
  *
- * 매일 commit 을 해줘야 다마고치가 행복하게 산다.
- *   - 3일 이상 미 commit  : 표정이 점점 슬퍼짐
- *   - 7일 연속 미 commit  : 사망 (게임 오버)
- *   - 연속 commit 이 쌓일수록 표정이 좋아짐
+ * 실제 GitHub 공개 이벤트(PushEvent)를 popen() 으로 받아와 다마고치 표정을 결정한다.
+ *   - 마지막 commit 으로부터 7일 이상 -> 사망
+ *   - 5~6일 -> 빈사,  3~4일 -> 슬픔
+ *   - 0일 + 최근 30일 push 가 많을수록 행복 / 매우행복 / 전설
  *
- * 사용 라이브러리 : C 표준 라이브러리만 (stdio / stdlib / string)
- * 실행 인자       : argv[1] = 로비에서 넘어온 사용자 ID (선택)
- * 종료 코드       : 최종 점수 (0~255 clamp). 로비에서 WEXITSTATUS 로 회수
+ * 데이터 소스 : scripts/github_stats.sh USER  (stdout 2줄 = days_since / count_30d)
+ * 사용 라이브러리 : C 표준 라이브러리만 (stdio/stdlib/string)
+ * 실행 인자       : argv[1] = 로비에서 넘어온 사용자 ID (GitHub username)
+ * 종료 코드       : 최종 점수 (0~255 clamp). 로비 WEXITSTATUS 회수
+ *
+ * 게임플레이 : 사실상 GitHub habit 뷰어. 'r' 새로고침 / 'q' 종료.
+ * 점수가 갱신되려면 실제로 GitHub 에 commit 을 push 하고 다시 들어와야 한다.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define HP_MAX            10
-#define MOOD_MAX          10
-#define DEATH_DAYS         7  /* 7일 연속 미 commit -> 사망 */
-#define SAD_DAYS           3  /* 3일 미 commit 부터 슬픔 */
-#define HAPPY_STREAK       3
-#define ECSTATIC_STREAK    7
-#define LEGENDARY_STREAK  14
+#define DEATH_DAYS   7
+#define SAD_DAYS     3
+#define HAPPY_COMMITS_30D     5
+#define ECSTATIC_COMMITS_30D  20
+#define LEGENDARY_COMMITS_30D 50
 
 typedef enum {
     EXPR_DEAD = 0,
@@ -34,7 +36,6 @@ typedef enum {
     EXPR_COUNT
 } expr_t;
 
-/* 표정별 6줄짜리 얼굴 ASCII 아트 */
 static const char *faces[EXPR_COUNT][6] = {
     /* DEAD */
     {
@@ -45,7 +46,7 @@ static const char *faces[EXPR_COUNT][6] = {
         "      |    -----    |",
         "       \\___________/"
     },
-    /* DYING : 5~6일 미 commit */
+    /* DYING */
     {
         "        ___________",
         "       /           \\",
@@ -54,7 +55,7 @@ static const char *faces[EXPR_COUNT][6] = {
         "      |    \\___/    |",
         "       \\___________/"
     },
-    /* SAD : 3~4일 미 commit */
+    /* SAD */
     {
         "        ___________",
         "       /           \\",
@@ -72,7 +73,7 @@ static const char *faces[EXPR_COUNT][6] = {
         "      |     ---     |",
         "       \\___________/"
     },
-    /* HAPPY : streak >= 3 */
+    /* HAPPY */
     {
         "        ___________",
         "       /           \\",
@@ -81,7 +82,7 @@ static const char *faces[EXPR_COUNT][6] = {
         "      |     \\_/     |",
         "       \\___________/"
     },
-    /* ECSTATIC : streak >= 7 */
+    /* ECSTATIC */
     {
         "        ___________",
         "       /   *   *   \\",
@@ -90,7 +91,7 @@ static const char *faces[EXPR_COUNT][6] = {
         "      |    \\_o_/    |",
         "       \\___________/"
     },
-    /* LEGENDARY : streak >= 14 */
+    /* LEGENDARY */
     {
         "        ___________",
         "       / \\(^o^)/   \\",
@@ -114,47 +115,64 @@ static const char *expr_label(expr_t e) {
     }
 }
 
-static int  alive;
-static int  hp;
-static int  mood;
-static int  days_since_commit;     /* 마지막 commit 이후 며칠 지났는가 */
-static int  consecutive_commits;   /* 현재 연속 commit streak */
-static int  total_commits;
-static int  max_streak;
-static int  days_lived;            /* 살아있는 동안 지난 일수 */
-static int  current_day;
 static char username[64];
+static int  days_since_commit;     /* 999 = 데이터 없음/오프라인 */
+static int  total_commits_30d;
+static int  fetch_ok;
 static char last_msg[160];
 
 static expr_t current_expression(void) {
-    if (!alive) return EXPR_DEAD;
-
-    /* 미 commit 일수가 우선 (절체절명 상황) */
+    if (!fetch_ok)                       return EXPR_NEUTRAL;
+    if (days_since_commit >= DEATH_DAYS) return EXPR_DEAD;
     if (days_since_commit >= DEATH_DAYS - 2) return EXPR_DYING;   /* 5,6일 */
-    if (days_since_commit >= SAD_DAYS)       return EXPR_SAD;     /* 3,4일 */
+    if (days_since_commit >= SAD_DAYS)   return EXPR_SAD;         /* 3,4일 */
 
-    /* streak 에 따른 행복도 */
-    if (consecutive_commits >= LEGENDARY_STREAK) return EXPR_LEGENDARY;
-    if (consecutive_commits >= ECSTATIC_STREAK)  return EXPR_ECSTATIC;
-    if (consecutive_commits >= HAPPY_STREAK)     return EXPR_HAPPY;
+    /* 오늘 commit 이 있으면 (days_since_commit == 0) 양에 따라 행복도 상승.
+     * 오늘 안 했으면(1,2) NEUTRAL. */
+    if (days_since_commit == 0) {
+        if (total_commits_30d >= LEGENDARY_COMMITS_30D) return EXPR_LEGENDARY;
+        if (total_commits_30d >= ECSTATIC_COMMITS_30D)  return EXPR_ECSTATIC;
+        if (total_commits_30d >= HAPPY_COMMITS_30D)     return EXPR_HAPPY;
+    }
     return EXPR_NEUTRAL;
 }
 
-static void clear_screen(void) {
-    /* ANSI : 화면 클리어 + 커서 홈 */
-    printf("\033[2J\033[H");
+/* scripts/github_stats.sh 를 popen() 으로 호출해 두 줄을 읽어온다. */
+static void fetch_github_state(void) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "sh scripts/github_stats.sh '%s' 2>/dev/null", username);
+
+    FILE *p = popen(cmd, "r");
+    if (!p) {
+        fetch_ok = 0;
+        days_since_commit = 999;
+        total_commits_30d = 0;
+        snprintf(last_msg, sizeof(last_msg),
+            "[!] popen 실패 - shell 또는 curl 사용 불가?");
+        return;
+    }
+
+    int d = 999, c = 0;
+    if (fscanf(p, "%d", &d) != 1) d = 999;
+    if (fscanf(p, "%d", &c) != 1) c = 0;
+    pclose(p);
+
+    days_since_commit = d;
+    total_commits_30d = c;
+    fetch_ok = (d != 999 || c > 0);   /* 둘 다 기본값이면 실패로 간주 */
+
+    if (!fetch_ok) {
+        snprintf(last_msg, sizeof(last_msg),
+            "[!] GitHub 데이터를 가져오지 못했습니다. (네트워크/사용자 확인)");
+    } else {
+        snprintf(last_msg, sizeof(last_msg),
+            "[OK] GitHub 상태를 가져왔습니다.");
+    }
 }
 
-static void draw_bar(int val, int max) {
-    int filled = (max > 0) ? (val * 10) / max : 0;
-    int i;
-    if (filled < 0)  filled = 0;
-    if (filled > 10) filled = 10;
-    printf("[");
-    for (i = 0; i < 10; i++) {
-        printf("%s", i < filled ? "#" : "-");
-    }
-    printf("]");
+static void clear_screen(void) {
+    printf("\033[2J\033[H");
 }
 
 static void render(void) {
@@ -164,9 +182,9 @@ static void render(void) {
     clear_screen();
     printf("=========================================\n");
     printf("   GitHub Tamagotchi (game2)\n");
+    printf("   - 실 GitHub PushEvent 기반 -\n");
     printf("=========================================\n");
     printf(" Player : %s\n", username);
-    printf(" Day    : %d   (생존 %d일)\n", current_day, days_lived);
     printf("-----------------------------------------\n");
 
     for (i = 0; i < 6; i++) {
@@ -176,28 +194,26 @@ static void render(void) {
     printf("       << %s >>\n", expr_label(e));
     printf("\n");
 
-    printf(" HP     : ");
-    draw_bar(hp, HP_MAX);
-    printf(" (%d/%d)\n", hp, HP_MAX);
-
-    printf(" Mood   : ");
-    draw_bar(mood, MOOD_MAX);
-    printf(" (%d/%d)\n", mood, MOOD_MAX);
-
-    printf(" Streak : %d 일 연속 commit (best %d)\n",
-           consecutive_commits, max_streak);
-    printf(" Total  : %d commits\n", total_commits);
-    printf(" 마지막 commit 이후: %d일", days_since_commit);
-
-    if (alive && days_since_commit >= SAD_DAYS) {
-        int left = DEATH_DAYS - days_since_commit;
-        if (left > 0) printf("   [!] 사망까지 %d일", left);
+    if (fetch_ok) {
+        if (days_since_commit >= 999) {
+            printf(" 최근 push 기록 없음\n");
+        } else {
+            printf(" 마지막 commit 이후    : %d 일\n", days_since_commit);
+            if (days_since_commit < DEATH_DAYS) {
+                int left = DEATH_DAYS - days_since_commit;
+                printf(" 사망까지 남은 일수    : %d 일\n", left);
+            } else {
+                printf(" 사망까지 남은 일수    : 0 (이미 사망)\n");
+            }
+        }
+        printf(" 최근 30일 PushEvent  : %d 회\n", total_commits_30d);
+    } else {
+        printf(" GitHub 데이터를 가져오지 못했습니다.\n");
+        printf(" (오프라인이거나 username 이 잘못되었을 수 있음)\n");
     }
-    printf("\n");
 
     printf("-----------------------------------------\n");
-    printf(" [c] commit       (streak +1, 표정 회복)\n");
-    printf(" [s] skip         (미 commit 일수 +1)\n");
+    printf(" [r] refresh      (다시 GitHub 조회)\n");
     printf(" [q] quit         (현재 점수로 종료)\n");
     printf("-----------------------------------------\n");
     if (last_msg[0]) {
@@ -223,113 +239,63 @@ static int read_action(char *out) {
     return 1;
 }
 
-/* 반환값: 1 = 하루 진행, 0 = 진행 없음(무효 입력), -1 = 즉시 종료 */
-static int handle_action(char act) {
-    switch (act) {
-        case 'c': case 'C':
-            total_commits++;
-            consecutive_commits++;
-            days_since_commit = 0;
-            if (consecutive_commits > max_streak)
-                max_streak = consecutive_commits;
+static int compute_score(void) {
+    if (!fetch_ok) return 0;
 
-            mood += 2;
-            if (mood > MOOD_MAX) mood = MOOD_MAX;
-            hp += 1;
-            if (hp > HP_MAX) hp = HP_MAX;
+    /* 살아있음 보너스 */
+    int alive_bonus = (days_since_commit < DEATH_DAYS) ? 100 : 0;
 
-            if (consecutive_commits >= LEGENDARY_STREAK) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[c] commit! streak %d 일... 다마고치가 전설이 되어가요!",
-                    consecutive_commits);
-            } else if (consecutive_commits >= ECSTATIC_STREAK) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[c] commit! streak %d 일! 다마고치가 매우 행복합니다.",
-                    consecutive_commits);
-            } else if (consecutive_commits >= HAPPY_STREAK) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[c] commit! streak %d 일. 다마고치가 좋아합니다.",
-                    consecutive_commits);
-            } else {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[c] commit! (streak %d)", consecutive_commits);
-            }
-            return 1;
-
-        case 's': case 'S':
-            consecutive_commits = 0;
-            days_since_commit++;
-            mood -= 2;
-            if (mood < 0) mood = 0;
-            hp -= 1;
-            if (hp < 0) hp = 0;
-
-            if (days_since_commit >= DEATH_DAYS) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[X] %d일 연속 미 commit... 다마고치가 떠났습니다.",
-                    days_since_commit);
-            } else if (days_since_commit >= DEATH_DAYS - 2) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[!] %d일째 commit 없음. 사망까지 %d일 남았어요...",
-                    days_since_commit, DEATH_DAYS - days_since_commit);
-            } else if (days_since_commit >= SAD_DAYS) {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[s] skip. %d일째 commit 없음. 다마고치가 슬퍼합니다.",
-                    days_since_commit);
-            } else {
-                snprintf(last_msg, sizeof(last_msg),
-                    "[s] skip. %d일째 commit 없음.",
-                    days_since_commit);
-            }
-            return 1;
-
-        case 'q': case 'Q':
-            return -1;
-
-        default:
-            snprintf(last_msg, sizeof(last_msg),
-                "[?] c (commit), s (skip), q (quit) 중에 선택하세요.");
-            return 0;
+    /* 신선도 (오늘 commit 했을수록 큰 점수) */
+    int recency = 0;
+    if (days_since_commit < DEATH_DAYS) {
+        recency = (DEATH_DAYS - days_since_commit) * 10;     /* 0~70 */
     }
+
+    /* 30일 활동량 */
+    int volume = total_commits_30d;
+    if (volume > 100) volume = 100;
+
+    int s = alive_bonus + recency + volume;
+    if (s < 0)   s = 0;
+    if (s > 255) s = 255;
+    return s;
 }
 
-/* 하루를 넘긴 뒤 사망 여부 판정 */
-static void advance_day(void) {
-    days_lived++;
-    current_day++;
-    if (alive && days_since_commit >= DEATH_DAYS) {
-        alive = 0;
-    }
-}
-
-static void show_summary(int final_score) {
-    expr_t e = alive ? current_expression() : EXPR_DEAD;
+static void show_summary(int score) {
+    expr_t e = current_expression();
     int i;
 
     printf("\n=========================================\n");
     printf("   GitHub Tamagotchi 결산\n");
     printf("=========================================\n");
-    printf(" Player        : %s\n", username);
-    printf(" Days lived    : %d 일\n", days_lived);
-    printf(" Total commits : %d\n", total_commits);
-    printf(" Max streak    : %d 일\n", max_streak);
-    printf(" Final mood    : %s\n", expr_label(e));
+    printf(" Player              : %s\n", username);
+    if (fetch_ok) {
+        printf(" 마지막 commit 이후 : %d 일\n", days_since_commit);
+        printf(" 최근 30일 push     : %d 회\n", total_commits_30d);
+    } else {
+        printf(" GitHub 데이터 없음 (점수 0)\n");
+    }
+    printf(" Final mood          : %s\n", expr_label(e));
     printf("-----------------------------------------\n");
     for (i = 0; i < 6; i++) printf("%s\n", faces[e][i]);
     printf("\n");
-    if (!alive) {
-        printf(" 다마고치는 %d일 만에 떠났습니다.\n", days_lived);
-        printf(" 매일 commit 을 잊지 마세요!\n");
-    } else if (max_streak >= LEGENDARY_STREAK) {
-        printf(" 전설이 된 다마고치와 행복한 결말!\n");
-    } else if (max_streak >= ECSTATIC_STREAK) {
-        printf(" 다마고치가 매우 만족스러워 합니다.\n");
+
+    if (!fetch_ok) {
+        printf(" 다음엔 인터넷에 연결한 채로 실행해보세요.\n");
+    } else if (days_since_commit >= DEATH_DAYS) {
+        printf(" %d일째 commit 이 없어 다마고치가 떠났습니다.\n", days_since_commit);
+        printf(" 오늘 한 줄이라도 commit -> push 해주세요!\n");
+    } else if (days_since_commit == 0 && total_commits_30d >= LEGENDARY_COMMITS_30D) {
+        printf(" 전설의 commit 머신! 다마고치가 황홀해합니다.\n");
+    } else if (days_since_commit == 0) {
+        printf(" 오늘도 commit 성공. 다마고치가 행복합니다.\n");
     } else {
-        printf(" 다마고치를 살아 있게 지키는데 성공했습니다.\n");
+        printf(" 다마고치가 commit 을 기다리고 있어요.\n");
     }
+
     printf("=========================================\n");
-    printf(" 최종 점수: %d 점\n", final_score);
-    printf("   (commits*2 + max_streak*3 + days_lived)\n");
+    printf(" 최종 점수: %d 점\n", score);
+    printf("   (alive100 + (7-days)*10 + min(commits30,100))\n");
     printf("=========================================\n");
 }
 
@@ -340,34 +306,33 @@ int main(int argc, char **argv) {
         snprintf(username, sizeof(username), "guest");
     }
 
-    alive               = 1;
-    hp                  = HP_MAX;
-    mood                = MOOD_MAX / 2;
-    days_since_commit   = 0;
-    consecutive_commits = 0;
-    total_commits       = 0;
-    max_streak          = 0;
-    days_lived          = 0;
-    current_day         = 1;
-    last_msg[0]         = '\0';
+    days_since_commit = 999;
+    total_commits_30d = 0;
+    fetch_ok          = 0;
+    last_msg[0]       = '\0';
 
-    while (alive) {
+    /* 시작하자마자 1차 fetch */
+    fetch_github_state();
+
+    while (1) {
         render();
-
         char act = ' ';
         if (!read_action(&act)) break;     /* EOF */
 
-        int r = handle_action(act);
-        if (r < 0) break;                  /* quit */
-        if (r > 0) advance_day();          /* 하루 진행 */
-        /* r == 0 이면 같은 날 다시 입력 */
+        if (act == 'q' || act == 'Q') break;
+
+        if (act == 'r' || act == 'R') {
+            snprintf(last_msg, sizeof(last_msg), "[..] GitHub 다시 조회중...");
+            render();
+            fetch_github_state();
+            continue;
+        }
+
+        snprintf(last_msg, sizeof(last_msg),
+            "[?] r (refresh) 또는 q (quit) 중 선택.");
     }
 
-    /* 점수 = commits*2 + max_streak*3 + days_lived (0~255 clamp) */
-    int score = total_commits * 2 + max_streak * 3 + days_lived;
-    if (score < 0)   score = 0;
-    if (score > 255) score = 255;
-
+    int score = compute_score();
     show_summary(score);
     return score;
 }

@@ -55,8 +55,24 @@ chmod +x games/game_bash.sh
 
 # GitHub Tamagotchi (game2)
 
-C 표준 라이브러리만으로 구현한 “GitHub 다마고치 키우기” 미니게임.
-매일 commit 을 해줘야 다마고치가 행복하게 살아간다.
+실제 GitHub 공개 활동을 popen() 으로 받아 다마고치 표정에 반영하는 미니게임.
+시뮬레이션 commit 이 아니라 **본인 GitHub 계정에 실제로 push 해야** 표정이 바뀐다.
+
+## 의존성
+
+- `curl` (Rocky Linux 기본 또는 `dnf install curl`)
+- `date -d` (GNU date - Linux 표준)
+- 인터넷 연결 (GitHub REST API 호출)
+
+## 데이터 소스
+
+- `scripts/github_stats.sh USER` 가 `https://api.github.com/users/USER/events/public` 에서
+  PushEvent 들을 긁어 두 숫자를 stdout 으로 출력:
+  - line 1: 마지막 PushEvent 로부터 지난 일수 (없으면 999)
+  - line 2: 응답에 포함된 PushEvent 총 개수 (GitHub Events API 한도 내)
+- game2 가 popen() 으로 그 두 줄을 fscanf 한다.
+- 회원가입(register) 단계에서는 `scripts/github_check.sh` 를 system() 으로 호출해
+  username 존재 여부만 검증한다 (HTTP 200 / 404).
 
 ## 빌드 & 실행
 
@@ -72,29 +88,28 @@ sh scripts/build.sh     # games/game2 가 함께 빌드됨
 
 | 키  | 동작                                |
 | --- | ----------------------------------- |
-| `c` | commit (streak +1, HP/Mood 회복)    |
-| `s` | skip (미 commit 일수 +1, HP/Mood -) |
+| `r` | refresh (GitHub 다시 조회)          |
 | `q` | 현재 점수로 종료                    |
 
 ## 표정 단계
 
-| 조건                            | 표정          |
-| ------------------------------- | ------------- |
-| 7일 연속 미 commit              | `X X` 사망    |
-| 5~6일 미 commit                 | `T T` 빈사    |
-| 3~4일 미 commit                 | `u u` 슬픔    |
-| 0~2일 미 commit & streak < 3    | `o o` 보통    |
-| streak 3 이상                   | `^ ^` 행복    |
-| streak 7 이상                   | `> <` 매우행복|
-| streak 14 이상                  | `\(^o^)/` 전설|
+| 조건                                            | 표정              |
+| ----------------------------------------------- | ----------------- |
+| 마지막 push 로부터 7일 이상                     | `X X` 사망        |
+| 5~6일                                           | `T T` 빈사        |
+| 3~4일                                           | `u u` 슬픔        |
+| 1~2일 (또는 오늘 commit + 30일 push < 5)        | `o o` 보통        |
+| 오늘 commit + 30일 push 5 이상                  | `^ ^` 행복        |
+| 오늘 commit + 30일 push 20 이상                 | `> <` 매우행복    |
+| 오늘 commit + 30일 push 50 이상                 | `\(^o^)/` 전설    |
 
-## 게임 규칙
+## 점수 공식
 
-- 초기 HP 10, Mood 5
-- `c` commit  : streak +1, days_since_commit 0, HP +1, Mood +2
-- `s` skip    : streak = 0, days_since_commit +1, HP -1, Mood -2
-- **7일 연속 미 commit** 이면 다마고치 사망 → 게임 종료
-- 3일 이상 미 commit 부터 표정이 점점 슬퍼짐
-- `q` 로 언제든 살아있는 상태로 게임 종료 가능
-- 최종 점수 = `total_commits * 2 + max_streak * 3 + days_lived`
-- 점수는 0~255 범위로 clamp 되어 로비에 반환 (exit code 8bit 제한)
+```
+score = (마지막 push 7일 이내 ? 100 : 0)        # 살아있음 보너스
+      + max(0, 7 - days_since_commit) * 10      # 신선도 (0~70)
+      + min(commits_last_30d, 100)              # 활동량 (0~100)
+```
+
+- 최대 270 → 255 로 clamp (exit code 8bit 제한)
+- 점수를 올리려면 **GitHub 에 실제로 push** 후 `r` 로 새로고침 또는 게임 재실행

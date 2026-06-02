@@ -43,6 +43,7 @@ static int do_register(void) {
     if (r == 0)   { printf("[OK] 가입이 완료되었습니다.\n");           return 0;  }
     if (r == -1)  { printf("[X] 이미 존재하는 아이디입니다.\n");        return -1; }
     if (r == -3)  { printf("[X] 아이디/비밀번호가 비어있거나 형식 오류.\n"); return -1; }
+    if (r == -4)  { printf("[X] GitHub 에 존재하지 않는 사용자입니다. (네트워크 또는 curl 미설치 시도 동일)\n"); return -1; }
     printf("[X] 계정 파일 저장 실패.\n");
     return -1;
 }
