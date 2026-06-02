@@ -65,7 +65,8 @@ static void lobby_menu(const char *user) {
     while (1) {
         printf("\n----- [ 로비 ] 사용자: %s -----\n", user);
         printf(" (미니게임 기능은 팀 협의 후 추가 예정)\n");
-        printf(" 1) Game1(Dummy)");
+        printf(" 1) Game1\n");
+        printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -78,8 +79,8 @@ static void lobby_menu(const char *user) {
             printf("[INFO] 로그아웃 되었습니다.\n");
             return;
         }
-        else if(sel == 1){
-            printf("[System] 게임 프로세스를 생성합니다...\n");
+        else if(sel == 1 || sel == 2){
+            printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 실행 실패 공유를 위한 파이프 생성
             int exec_pipe[2];

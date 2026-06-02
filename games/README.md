@@ -51,5 +51,50 @@ chmod +x games/game_bash.sh
 - 보스(B)를 처치하면 게임 클리어
 - HP가 0이 되면 게임 오버
 
+---
 
+# GitHub Tamagotchi (game2)
 
+C 표준 라이브러리만으로 구현한 “GitHub 다마고치 키우기” 미니게임.
+매일 commit 을 해줘야 다마고치가 행복하게 살아간다.
+
+## 빌드 & 실행
+
+```sh
+sh scripts/build.sh     # games/game2 가 함께 빌드됨
+./games/game2 사용자ID  # 단독 실행
+```
+
+로비(`bin/lobby`)에서 메뉴 `2` 를 선택하면 fork/exec 로 자동 실행되고,
+종료 시 점수가 `WEXITSTATUS` 로 회수되어 최고점수 파일에 기록된다.
+
+## 조작법
+
+| 키  | 동작                                |
+| --- | ----------------------------------- |
+| `c` | commit (streak +1, HP/Mood 회복)    |
+| `s` | skip (미 commit 일수 +1, HP/Mood -) |
+| `q` | 현재 점수로 종료                    |
+
+## 표정 단계
+
+| 조건                            | 표정          |
+| ------------------------------- | ------------- |
+| 7일 연속 미 commit              | `X X` 사망    |
+| 5~6일 미 commit                 | `T T` 빈사    |
+| 3~4일 미 commit                 | `u u` 슬픔    |
+| 0~2일 미 commit & streak < 3    | `o o` 보통    |
+| streak 3 이상                   | `^ ^` 행복    |
+| streak 7 이상                   | `> <` 매우행복|
+| streak 14 이상                  | `\(^o^)/` 전설|
+
+## 게임 규칙
+
+- 초기 HP 10, Mood 5
+- `c` commit  : streak +1, days_since_commit 0, HP +1, Mood +2
+- `s` skip    : streak = 0, days_since_commit +1, HP -1, Mood -2
+- **7일 연속 미 commit** 이면 다마고치 사망 → 게임 종료
+- 3일 이상 미 commit 부터 표정이 점점 슬퍼짐
+- `q` 로 언제든 살아있는 상태로 게임 종료 가능
+- 최종 점수 = `total_commits * 2 + max_streak * 3 + days_lived`
+- 점수는 0~255 범위로 clamp 되어 로비에 반환 (exit code 8bit 제한)
