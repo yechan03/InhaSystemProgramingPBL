@@ -15,6 +15,10 @@
  * 점수가 갱신되려면 실제로 GitHub 에 commit 을 push 하고 다시 들어와야 한다.
  */
 
+/* popen() / pclose() 는 POSIX 확장이라 -std=c99 모드에서 stdio.h 가 숨긴다.
+ * 이 매크로를 stdio.h 전에 정의해야 선언이 노출된다. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -300,11 +304,15 @@ static void show_summary(int score) {
 }
 
 int main(int argc, char **argv) {
-    if (argc >= 2 && argv[1] && argv[1][0] != '\0') {
-        snprintf(username, sizeof(username), "%s", argv[1]);
-    } else {
-        snprintf(username, sizeof(username), "guest");
-    }
+    /* 로비 규약 : argv[1] = 로그인 ID, argv[2] = GitHub username.
+     * game2 는 GitHub API 를 호출해야 하므로 argv[2] 를 우선 사용한다.
+     * argv[2] 가 비어있으면 (단독 실행 등) argv[1] 로 폴백. */
+    const char *gh = NULL;
+    if (argc >= 3 && argv[2] && argv[2][0] != '\0')      gh = argv[2];
+    else if (argc >= 2 && argv[1] && argv[1][0] != '\0') gh = argv[1];
+
+    if (gh) snprintf(username, sizeof(username), "%s", gh);
+    else    snprintf(username, sizeof(username), "guest");
 
     days_since_commit = 999;
     total_commits_30d = 0;
