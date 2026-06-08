@@ -23,6 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* 매 줄 끝에 붙여 "줄 끝까지 지우기"(Erase to end of Line).
+ * 커서를 좌상단으로만 옮겨 덮어쓸 때, 이전 프레임의 더 긴 줄 잔상을 지운다. */
+#define EL "\033[K"
+
 #define DEATH_DAYS   7
 #define SAD_DAYS     3
 #define HAPPY_COMMITS_30D     5
@@ -175,55 +179,65 @@ static void fetch_github_state(void) {
     }
 }
 
-static void clear_screen(void) {
-    printf("\033[2J\033[H");
+/* 시작 시 단 한 번만 전체 화면을(스크롤백 포함) 비운다. */
+static void screen_init(void) {
+    printf("\033[2J\033[3J\033[H");
+    fflush(stdout);
+}
+
+/* 매 프레임 커서를 좌상단(1,1)으로만 되돌린다.
+ * 전체를 지우지(\033[2J) 않으므로 화면이 아래로 흐르지 않고 제자리에서 덮어쓴다. */
+static void cursor_home(void) {
+    printf("\033[H");
 }
 
 static void render(void) {
     expr_t e = current_expression();
     int i;
 
-    clear_screen();
-    printf("=========================================\n");
-    printf("   GitHub Tamagotchi (game2)\n");
-    printf("   - 실 GitHub PushEvent 기반 -\n");
-    printf("=========================================\n");
-    printf(" Player : %s\n", username);
-    printf("-----------------------------------------\n");
+    cursor_home();
+    printf("=========================================" EL "\n");
+    printf("   GitHub Tamagotchi (game2)"             EL "\n");
+    printf("   - 실 GitHub PushEvent 기반 -"          EL "\n");
+    printf("=========================================" EL "\n");
+    printf(" Player : %s"                             EL "\n", username);
+    printf("-----------------------------------------" EL "\n");
 
     for (i = 0; i < 6; i++) {
-        printf("%s\n", faces[e][i]);
+        printf("%s" EL "\n", faces[e][i]);
     }
-    printf("\n");
-    printf("       << %s >>\n", expr_label(e));
-    printf("\n");
+    printf(EL "\n");
+    printf("       << %s >>" EL "\n", expr_label(e));
+    printf(EL "\n");
 
     if (fetch_ok) {
         if (days_since_commit >= 999) {
-            printf(" 최근 push 기록 없음\n");
+            printf(" 최근 push 기록 없음" EL "\n");
         } else {
-            printf(" 마지막 commit 이후    : %d 일\n", days_since_commit);
+            printf(" 마지막 commit 이후    : %d 일" EL "\n", days_since_commit);
             if (days_since_commit < DEATH_DAYS) {
                 int left = DEATH_DAYS - days_since_commit;
-                printf(" 사망까지 남은 일수    : %d 일\n", left);
+                printf(" 사망까지 남은 일수    : %d 일" EL "\n", left);
             } else {
-                printf(" 사망까지 남은 일수    : 0 (이미 사망)\n");
+                printf(" 사망까지 남은 일수    : 0 (이미 사망)" EL "\n");
             }
         }
-        printf(" 최근 30일 PushEvent  : %d 회\n", total_commits_30d);
+        printf(" 최근 30일 PushEvent  : %d 회" EL "\n", total_commits_30d);
     } else {
-        printf(" GitHub 데이터를 가져오지 못했습니다.\n");
-        printf(" (오프라인이거나 username 이 잘못되었을 수 있음)\n");
+        printf(" GitHub 데이터를 가져오지 못했습니다."        EL "\n");
+        printf(" (오프라인이거나 username 이 잘못되었을 수 있음)" EL "\n");
     }
 
-    printf("-----------------------------------------\n");
-    printf(" [r] refresh      (다시 GitHub 조회)\n");
-    printf(" [q] quit         (현재 점수로 종료)\n");
-    printf("-----------------------------------------\n");
+    printf("-----------------------------------------" EL "\n");
+    printf(" [r] refresh      (다시 GitHub 조회)"      EL "\n");
+    printf(" [q] quit         (현재 점수로 종료)"      EL "\n");
+    printf("-----------------------------------------" EL "\n");
     if (last_msg[0]) {
-        printf(" %s\n", last_msg);
-        printf("-----------------------------------------\n");
+        printf(" %s" EL "\n", last_msg);
+        printf("-----------------------------------------" EL "\n");
     }
+    /* 프레임 아래에 남아있을 수 있는 이전(더 길었던) 프레임 잔여 줄 제거 */
+    printf("\033[J");
     printf(" 선택 > ");
     fflush(stdout);
 }
@@ -269,7 +283,9 @@ static void show_summary(int score) {
     expr_t e = current_expression();
     int i;
 
-    printf("\n=========================================\n");
+    /* 결산 화면은 깨끗한 상태에서 시작 */
+    printf("\033[2J\033[H");
+    printf("=========================================\n");
     printf("   GitHub Tamagotchi 결산\n");
     printf("=========================================\n");
     printf(" Player              : %s\n", username);
@@ -318,6 +334,9 @@ int main(int argc, char **argv) {
     total_commits_30d = 0;
     fetch_ok          = 0;
     last_msg[0]       = '\0';
+
+    /* 화면을 한 번 비우고, 이후 프레임은 좌상단에서 제자리 덮어쓰기 */
+    screen_init();
 
     /* 시작하자마자 1차 fetch */
     fetch_github_state();
