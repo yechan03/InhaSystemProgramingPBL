@@ -24,7 +24,23 @@ static void read_password(char *buf, size_t n) {
     }
 }
 
+/* 화면을 지우고 커서를 좌상단으로. 메뉴를 항상 같은 자리에서 다시 그려
+ * 화면이 아래로 흐르지(스크롤) 않게 한다. */
+static void clear_screen(void) {
+    printf("\033[2J\033[H");
+    fflush(stdout);
+}
+
+/* 결과 메시지가 다음 화면 지우기로 사라지기 전에 사용자가 읽도록 잠시 멈춘다. */
+static void pause_enter(void) {
+    char tmp[16];
+    printf("\n계속하려면 Enter 를 누르세요...");
+    fflush(stdout);
+    read_line(tmp, sizeof(tmp));
+}
+
 static void print_main_menu(void) {
+    clear_screen();
     printf("\n=========================================\n");
     printf("   Inha SysProg PBL : Mini-Game Lobby\n");
     printf("=========================================\n");
@@ -35,37 +51,41 @@ static void print_main_menu(void) {
 }
 
 static int do_register(void) {
-    char id[MAX_ID_LEN], pw[MAX_PW_LEN];
-    printf("새 아이디 : ");   read_line(id, sizeof(id));
-    printf("새 비밀번호 : "); read_password(pw, sizeof(pw));
+    char id[MAX_ID_LEN], pw[MAX_PW_LEN], github[MAX_GH_LEN];
+    printf("새 아이디 (로그인용)   : "); read_line(id, sizeof(id));
+    printf("GitHub username         : "); read_line(github, sizeof(github));
+    printf("새 비밀번호             : "); read_password(pw, sizeof(pw));
 
-    int r = account_register(id, pw);
-    if (r == 0)   { printf("[OK] 가입이 완료되었습니다.\n");           return 0;  }
+    int r = account_register(id, pw, github);
+    if (r == 0)   { printf("[OK] 가입이 완료되었습니다. (GitHub: %s)\n", github); return 0;  }
     if (r == -1)  { printf("[X] 이미 존재하는 아이디입니다.\n");        return -1; }
-    if (r == -3)  { printf("[X] 아이디/비밀번호가 비어있거나 형식 오류.\n"); return -1; }
+    if (r == -3)  { printf("[X] 입력 형식 오류 (id/pw/github 빈 값 또는 GitHub username 규칙 위반).\n"); return -1; }
+    if (r == -4)  { printf("[X] GitHub 에 존재하지 않는 사용자입니다. (네트워크 또는 curl 미설치 시도 동일)\n"); return -1; }
     printf("[X] 계정 파일 저장 실패.\n");
     return -1;
 }
 
-static int do_login(char *out_user, size_t n) {
+static int do_login(char *out_user, size_t un, char *out_github, size_t gn) {
     char id[MAX_ID_LEN], pw[MAX_PW_LEN];
     printf("아이디 : ");   read_line(id, sizeof(id));
     printf("비밀번호 : "); read_password(pw, sizeof(pw));
 
-    if (account_login(id, pw) == 0) {
-        snprintf(out_user, n, "%s", id);
-        printf("[OK] 환영합니다, %s 님!\n", out_user);
+    if (account_login(id, pw, out_github, gn) == 0) {
+        snprintf(out_user, un, "%s", id);
+        printf("[OK] 환영합니다, %s 님! (GitHub: %s)\n", out_user, out_github);
         return 0;
     }
     printf("[X] 로그인 실패: 아이디 또는 비밀번호가 올바르지 않습니다.\n");
     return -1;
 }
 
-static void lobby_menu(const char *user) {
+static void lobby_menu(const char *user, const char *github) {
     while (1) {
-        printf("\n----- [ 로비 ] 사용자: %s -----\n", user);
+        clear_screen();
+        printf("\n----- [ 로비 ] 사용자: %s (GitHub: %s) -----\n", user, github);
         printf(" (미니게임 기능은 팀 협의 후 추가 예정)\n");
-        printf(" 1) Game1(Dummy)");
+        printf(" 1) Game1\n");
+        printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -76,10 +96,11 @@ static void lobby_menu(const char *user) {
 
         if (sel == 0) {
             printf("[INFO] 로그아웃 되었습니다.\n");
+            pause_enter();
             return;
         }
-        else if(sel == 1){
-            printf("[System] 게임 프로세스를 생성합니다...\n");
+        else if(sel == 1 || sel == 2){
+            printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 실행 실패 공유를 위한 파이프 생성
             int exec_pipe[2];
@@ -109,8 +130,8 @@ static void lobby_menu(const char *user) {
                 sprintf(game_name, "game%d", sel);
 
                 // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
-                // 플레이어 ID를 넘겨서 게임 내에서 개인 데이터를 인식
-                execl(game_path, game_name, user, NULL);
+                // argv[1] = 로그인 ID (game1 호환), argv[2] = GitHub username (game2 가 사용)
+                execl(game_path, game_name, user, github, (char *)NULL);
 
                 // execl이 실패했을 경우 
                 int error_signal = 1;
@@ -155,18 +176,22 @@ static void lobby_menu(const char *user) {
                     printf("\n[X] 경고: 게임 프로세스가 비정상적으로 종료되었습니다.\n");
                 }
             }
+            pause_enter();
         }
         else if(sel == 9){
             show_leaderboard();// leader board를 보여주는 함수(score.h에 포함)
+            pause_enter();
         }
         else{
             printf("[X] 잘못된 선택입니다.\n");
+            pause_enter();
         }
     }
 }
 
 int main(void) {
     char user[MAX_ID_LEN];
+    char github[MAX_GH_LEN];
     while (1) {
         print_main_menu();
         char buf[16];
@@ -174,14 +199,24 @@ int main(void) {
         int sel = atoi(buf);
 
         if (sel == 0) break;
-        else if (sel == 1) do_register();
+        else if (sel == 1) {
+            do_register();
+            pause_enter();
+        }
         else if (sel == 2) {
-            user[0] = '\0';
-            if (do_login(user, sizeof(user)) == 0) {
-                lobby_menu(user);
+            user[0]   = '\0';
+            github[0] = '\0';
+            if (do_login(user, sizeof(user), github, sizeof(github)) == 0) {
+                pause_enter();              /* 환영 메시지를 본 뒤 로비로 */
+                lobby_menu(user, github);
+            } else {
+                pause_enter();              /* 로그인 실패 메시지 확인 */
             }
         }
-        else printf("[X] 잘못된 선택입니다.\n");
+        else {
+            printf("[X] 잘못된 선택입니다.\n");
+            pause_enter();
+        }
     }
     printf("\n프로그램을 종료합니다. 안녕히 가세요!\n");
     return 0;

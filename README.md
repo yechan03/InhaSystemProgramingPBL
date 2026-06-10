@@ -45,6 +45,53 @@ InhaSystemProgramingPBL/
 | `games/`	 | 독립 프로세스로 구동될 게임 바이너리 모음    |
 | `bin/`     | gcc 컴파일 산출물. `make clean` 시 삭제됨  |
 
+## 프로그램 흐름도 (Flow Chart)
+
+로비 진입부터 회원가입 / 로그인 / 미니게임(fork·exec) / 점수 회수까지의 전체 제어 흐름.
+회색으로 표시된 노드는 sh 스크립트(`system()` / `popen()`)로 외부 도구(curl)를 호출하는 지점이다.
+
+```mermaid
+flowchart TD
+    Start([프로그램 시작]) --> Menu{"메인 메뉴<br/>1 가입 / 2 로그인 / 0 종료"}
+
+    %% ---- 회원가입 ----
+    Menu -->|1 회원가입| Reg["ID · GitHub username · PW 입력"]
+    Reg --> GHChk["github_check.sh (system)<br/>GitHub username 존재 확인"]
+    GHChk -->|존재 200| SaveAcc[("accounts.txt 저장<br/>id:hash:github")]
+    GHChk -->|없음 404 / 오류| Menu
+    SaveAcc --> Menu
+
+    %% ---- 로그인 ----
+    Menu -->|2 로그인| Login["ID · PW 입력"]
+    Login --> Verify{"hash_credential 일치?"}
+    Verify -->|불일치| Menu
+    Verify -->|일치| Lobby{"로비 메뉴<br/>1·2 게임 / 9 순위표 / 0 로그아웃"}
+
+    Menu -->|0 종료| End([프로그램 종료])
+
+    %% ---- 게임 실행 ----
+    Lobby -->|1 또는 2| Fork[["fork() + pipe()<br/>자식 프로세스 생성"]]
+    Fork --> Exec["execl(games/gameN, ...)<br/>argv[1]=ID, argv[2]=github"]
+    Exec --> G2["game2 : GitHub Tamagotchi"]
+
+    G2 --> Stats["github_stats.sh (popen)<br/>마지막 push 일수 · PushEvent 개수"]
+    Stats --> Face["표정 렌더링 (제자리 갱신)<br/>r / q 입력 대기"]
+    Face -->|r 새로고침| Stats
+    Face -->|q 종료| ExitScore["exit(score)  (점수=종료코드)"]
+    ExitScore --> Wait["부모: wait() + WEXITSTATUS<br/>자식 종료코드=점수 회수"]
+    Wait --> SaveScore[("scores.txt<br/>최고점수 비교·갱신")]
+    SaveScore --> Lobby
+
+    %% ---- 순위표 / 로그아웃 ----
+    Lobby -->|9 순위표| Board["show_leaderboard()<br/>랭킹 대시보드 출력"]
+    Board --> Lobby
+    Lobby -->|0 로그아웃| Menu
+
+    %% ---- 외부 스크립트 노드 강조 ----
+    classDef sh fill:#e8e8e8,stroke:#888,color:#000;
+    class GHChk,Stats sh;
+```
+
 ## 사용 라이브러리
 
 C 표준 라이브러리만 사용:

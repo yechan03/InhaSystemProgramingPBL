@@ -9,4 +9,4 @@ mkdir -p data bin
 
 echo "[OK] 초기화 완료"
 echo "  - data/accounts.txt"
-exho "  - data/scores.txt"
+echo "  - data/scores.txt"
