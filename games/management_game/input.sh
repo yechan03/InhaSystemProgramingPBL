@@ -123,7 +123,7 @@ input_management() {
         ;;
         "LIST_CONTRACTS")
             echo "You are in the list of contracts menu"
-                if $choice==1; then
+                if [ $choice -eq 1 ]; then
                     GAMESTATE="TURN"
                 else
                     echo "Invalid choice"

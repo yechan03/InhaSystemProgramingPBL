@@ -159,6 +159,13 @@ passing_turn() {
     echo "you got $newSteel steel"
     echo "you have $steel steel now"
 
+    event_occurs
+    #effectiveCoalCost=$(( todayCoalCost * coalPriceModifier ))
+    #effectiveIronOreCost=$(( todayIronOreCost * ironOrePriceModifier ))
+    #effectiveIronCost=$(( todayIronCost * ironPriceModifier ))
+    #effectiveSteelCost=$(( todaySteelCost * steelPriceModifier ))
+
+
     read -p "Press key to continue.. " -n1 -s
 
     GAMESTATE="TURN"

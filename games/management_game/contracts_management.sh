@@ -6,7 +6,6 @@ cost_per_turn ( ) {
 contract_resources () {
     local buyOrSell quantity turns separator
     local productToSell=$1
-    separator='|'
 
     read -p "Do you want to buy (1) or sell (2) $productToSell? " buyOrSell
     if [[ $buyOrSell == "1" ]]; then
@@ -22,16 +21,16 @@ contract_resources () {
     itemPrice=0
     case $productToSell in
         "coal")
-            itemPrice=$todayCoalCost
+            itemPrice=$effectiveCoalCost
             ;;
         "iron ore")
-            itemPrice=$todayIronOreCost
+            itemPrice=$effectiveIronOreCost
             ;;
         "iron")
-            itemPrice=$todayIronCost
+            itemPrice=$effectiveIronCost
             ;;
         "steel")
-            itemPrice=$todaySteelCost
+            itemPrice=$effectiveSteelCost
             ;;
         *)
             echo "Unknown product: $productToSell"
@@ -40,7 +39,7 @@ contract_resources () {
     esac   
     read -p "According to today's market, the price of $productToSell is $itemPrice, so $(( itemPrice * quantity )) each turn. Shall we proceed? (y/n)" proceed
     if [[ $proceed == "y" ]]; then
-        contracts_list+=("${buyOrSell}${separator}${productToSell}${separator}${quantity}${separator}${itemPrice}${separator}${turns}")
+        contracts_list+=("${buyOrSell}|${productToSell}|${quantity}|${itemPrice}|${turns}")
     fi
     quick_message "Contract added: ${buyOrSell} ${quantity} ${productToSell} for $(( itemPrice * quantity )) each turn for $turns turns."
 }

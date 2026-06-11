@@ -34,19 +34,19 @@ buy_build() {
             (( steelPlants += 1 ))
             ;;
         "coal")
-            if [ $money -lt $todayCoalCost ]; then
+            if [ $money -lt $effectiveCoalCost ]; then
                 quick_message "Not enough money to buy coal."
                 return
             fi
-            (( money -= $todayCoalCost ))
+            (( money -= $effectiveCoalCost ))
             (( coal += 1 ))
             ;;
         "iron")
-            if [ $money -lt $todayIronCost ]; then
+            if [ $money -lt $effectiveIronCost ]; then
                 quick_message "Not enough money to buy iron."
                 return
             fi
-            (( money -= $todayIronCost ))
+            (( money -= $effectiveIronCost ))
             (( iron += 1 ))
             ;;
         *)
@@ -63,7 +63,7 @@ sell_destroy() {
             quick_message "Not enough coal to sell."
             return
         fi
-        (( money += $todayCoalCost * $quantity ))
+        (( money += $effectiveCoalCost * $quantity ))
         (( coal -= $quantity ))
 
     ;;
@@ -72,7 +72,7 @@ sell_destroy() {
             quick_message "Not enough iron ores to sell."
             return
         fi
-        (( money += $todayIronOreCost * $quantity ))
+        (( money += $effectiveIronOreCost * $quantity ))
         (( iron_ore -= $quantity ))
     ;;
     "iron")
@@ -80,7 +80,7 @@ sell_destroy() {
             quick_message "Not enough iron to sell."
             return
         fi
-        (( money += $todayIronCost * $quantity ))
+        (( money += $effectiveIronCost * $quantity ))
         (( iron -= $quantity ))
     ;;
     "steel")
@@ -88,7 +88,7 @@ sell_destroy() {
             quick_message "Not enough steel to sell."
             return
         fi
-        (( money += $todaySteelCost * $quantity ))
+        (( money += $effectiveSteelCost * $quantity ))
         (( steel -= $quantity ))
     ;;
     "coal mine")

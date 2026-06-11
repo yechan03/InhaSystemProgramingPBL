@@ -11,8 +11,11 @@ source "$(dirname "$0")/resources.sh"
 source "$(dirname "$0")/utils.sh"
 source "$(dirname "$0")/contracts_management.sh"
 source "$(dirname "$0")/market.sh"
+source "$(dirname "$0")/events.sh"
 
 clear
+
+#Initialize game state
 GAMESTATE="TURN"
 
 money=20
@@ -28,6 +31,10 @@ todayCoalCost=$COAL_COST
 todayIronOreCost=$IRON_ORE_COST
 todayIronCost=$IRON_COST
 todaySteelCost=$STEEL_COST
+effectiveCoalCost=$todayCoalCost
+effectiveIronOreCost=$todayIronOreCost
+effectiveIronCost=$todayIronCost
+effectiveSteelCost=$todaySteelCost
 
 coalMines=0
 ironMines=0
@@ -52,6 +59,7 @@ STEEL_PLANT_IRON_COST=10
 
 contracts_list=()
 
+#MAIN
 while true; do
     clear
     display_game
