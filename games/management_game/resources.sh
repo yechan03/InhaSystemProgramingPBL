@@ -34,20 +34,40 @@ buy_build() {
             (( steelPlants += 1 ))
             ;;
         "coal")
-            if [ $money -lt $effectiveCoalCost ]; then
+            read -p "how many coal do you want to buy? " coal_to_buy
+            if [ $money -lt $((effectiveCoalCost * coal_to_buy)) ]; then
                 quick_message "Not enough money to buy coal."
                 return
             fi
-            (( money -= $effectiveCoalCost ))
-            (( coal += 1 ))
+            (( money -= $effectiveCoalCost * $coal_to_buy ))
+            (( coal += $coal_to_buy ))
+            ;;
+        "iron ore")
+            read -p "how many iron ores do you want to buy? " iron_ore_to_buy
+            if [ $money -lt $((effectiveIronOreCost * iron_ore_to_buy)) ]; then
+                quick_message "Not enough money to buy iron ore."
+                return
+            fi
+            (( money -= $effectiveIronOreCost * $iron_ore_to_buy ))
+            (( iron_ore += $iron_ore_to_buy ))
             ;;
         "iron")
-            if [ $money -lt $effectiveIronCost ]; then
+            read -p "how many iron do you want to buy? " iron_to_buy
+            if [ $money -lt $((effectiveIronCost * iron_to_buy)) ]; then
                 quick_message "Not enough money to buy iron."
                 return
             fi
-            (( money -= $effectiveIronCost ))
-            (( iron += 1 ))
+            (( money -= $effectiveIronCost * $iron_to_buy ))
+            (( iron += $iron_to_buy ))
+            ;;
+        "steel")
+            read -p "how many steel do you want to buy? " steel_to_buy
+            if [ $money -lt $((effectiveSteelCost * steel_to_buy)) ]; then
+                quick_message "Not enough money to buy steel."
+                return
+            fi
+            (( money -= $effectiveSteelCost * $steel_to_buy ))
+            (( steel += $steel_to_buy ))
             ;;
         *)
             quick_message "Invalid item."

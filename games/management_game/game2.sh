@@ -22,6 +22,7 @@ money=20
 coal=10
 iron_ore=20
 iron=0
+steel=0
 
 COAL_COST=2
 IRON_ORE_COST=5
@@ -35,6 +36,11 @@ effectiveCoalCost=$todayCoalCost
 effectiveIronOreCost=$todayIronOreCost
 effectiveIronCost=$todayIronCost
 effectiveSteelCost=$todaySteelCost
+
+coalPriceModifier=1
+ironOrePriceModifier=1
+ironPriceModifier=1
+steelPriceModifier=1
 
 coalMines=0
 ironMines=0

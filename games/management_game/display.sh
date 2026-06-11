@@ -4,7 +4,8 @@ display_game( ) {
     display_menus
 }
 display_info() {
-    echo "money: $money"
+    
+    echo -e "${RED}money: $money"
     echo "coal: $coal"
     echo "iron ores: $iron_ore"
     echo "iron: $iron"
@@ -12,7 +13,7 @@ display_info() {
     echo "coal mines: $coalMines"
     echo "iron mines: $ironMines"
     echo "iron plants: $ironPlants"
-    echo "steel plants: $steelPlants"
+    echo -e "steel plants: $steelPlants${NC}"
 }
 display_menus() {
     case $GAMESTATE in

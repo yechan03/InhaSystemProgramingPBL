@@ -10,3 +10,7 @@ quick_message() {
     echo "$1"
     sleep 1
 }
+
+#Color table
+RED='\033[0;31m'
+NC='\033[0m'

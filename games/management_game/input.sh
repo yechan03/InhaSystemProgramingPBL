@@ -54,6 +54,9 @@ input_management() {
                 7)
                     buy_build "iron"
                     ;;
+                8)
+                    buy_build "steel"
+                    ;;
             esac
             GAMESTATE="TURN"
 
