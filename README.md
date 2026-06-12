@@ -21,7 +21,7 @@ InhaSystemProgramingPBL/
 │
 ├── scripts/                 # 빌드·실행·연동 sh 스크립트
 │   ├── init.sh              # data/ 디렉토리·빈 파일 생성
-│   ├── build.sh             # gcc 컴파일 → bin/lobby + games/game1~3
+│   ├── build.sh             # gcc 컴파일 → bin/lobby + games/game1·2·3·5
 │   ├── run.sh               # 빌드 후 실행
 │   ├── clean.sh             # bin/, games/ 바이너리 정리 (data/ 보존)
 │   ├── github_check.sh      # GitHub username 존재 확인 (회원가입 시 system 호출)
@@ -44,6 +44,7 @@ InhaSystemProgramingPBL/
 │   ├── management_game/     # game4.sh 가 source 하는 모듈 모음
 │   │   ├── change_turn.sh / input.sh / display.sh / resources.sh
 │   │   └── utils.sh / contracts_management.sh / market.sh / events.sh
+│   ├── game5.c / game5      # 5번 Knight's Tour 기사의 여행 (소스 + 빌드 산출물)
 │   └── game_bash.sh         # VI-RPG bash 원작 (보존용)
 │
 └── sound/                   # 하드웨어 오디오 출력을 위한 WAV 리소스 저장소
@@ -84,12 +85,12 @@ flowchart TD
     Menu -->|2 로그인| Login["ID · PW 입력"]
     Login --> Verify{"hash_credential 일치?"}
     Verify -->|불일치| Menu
-    Verify -->|일치| Lobby{"로비 메뉴<br/>1~4 게임 / 9 순위표 / 0 로그아웃"}
+    Verify -->|일치| Lobby{"로비 메뉴<br/>1~5 게임 / 9 순위표 / 0 로그아웃"}
 
     Menu -->|0 종료| End([프로그램 종료])
 
     %% ---- 게임 실행 공통 ----
-    Lobby -->|1~4 선택| Fork[["fork() + pipe()<br/>자식 프로세스 생성<br/>(로비는 SIGINT 잠시 무시)"]]
+    Lobby -->|1~5 선택| Fork[["fork() + pipe()<br/>자식 프로세스 생성<br/>(로비는 SIGINT 잠시 무시)"]]
     Fork --> Exec["execl(games/gameN, ...)<br/>argv[1]=ID, argv[2]=github, argv[3]=파이프 fd"]
     Exec -->|execl 실패| ExecFail["파이프에 -1 write<br/>바이너리 누락 안내"]
     ExecFail --> Lobby
@@ -121,10 +122,15 @@ flowchart TD
     G4 -->|Ctrl+C 종료| G4End["점수 기록 없음<br/>(로비는 SIGINT 무시로 생존)"]
     G4End --> Lobby
 
+    %% ---- Game 5 분기 (기사의 여행) ----
+    Exec --> G5["game5 : Knight's Tour<br/>기사의 여행 (실시간 키 입력)"]
+    G5 -->|게임 종료| PipeScore5["argv[3] 파이프에 score write"]
+
     %% ---- 자식 종료 및 결산 공통 ----
-    ExitScore1 --> Wait["부모 점수 회수 프로토콜:<br/>① 파이프 값 -1 → 실행 실패<br/>② 파이프 값 ≥0 → 그대로 점수 (game3)<br/>③ 파이프 비어있음 → wait() + WEXITSTATUS (game1·2)"]
+    ExitScore1 --> Wait["부모 점수 회수 프로토콜:<br/>① 파이프 값 -1 → 실행 실패<br/>② 파이프 값 ≥0 → 그대로 점수 (game3·5)<br/>③ 파이프 비어있음 → wait() + WEXITSTATUS (game1·2)"]
     ExitScore --> Wait
     PipeScore --> Wait
+    PipeScore5 --> Wait
     Wait --> SaveScore[("scores.txt<br/>최고점수 비교·갱신")]
     SaveScore --> Lobby
 
@@ -264,7 +270,7 @@ yechan:13795222493806861027:yechan03
 | 파이프 수신 값 | 해석 | 처리 |
 | --- | --- | --- |
 | `-1` | `execl()` 실패 (바이너리 누락) | 빌드 안내 출력 |
-| `0 이상` | 게임이 직접 보낸 점수 (game3) | 8bit 제한 없이 그대로 기록 |
+| `0 이상` | 게임이 직접 보낸 점수 (game3·game5) | 8bit 제한 없이 그대로 기록 |
 | (비어있음) + 정상 종료 | 종료코드 점수 방식 (game1·game2 의 `exit(score)`) | `WEXITSTATUS` 로 회수 (0~255) |
 | (비어있음) + 비정상 종료 | 시그널 등 강제 소멸 | 비정상 종료 경고 |
 
@@ -282,6 +288,46 @@ game4(경영 시뮬레이션)는 점수 개념이 없어 회수 대상에서 제
   #1  | yechan         |   80         | 2026-05-24 15:02:45
 =======================================================
 ```
+
+## 미니게임 2: GitHub 연동 다마고치 (game2)
+
+2번 미니게임은 **실제 GitHub 계정의 commit 활동을 실시간으로 반영하는 다마고치**입니다. 시뮬레이션이 아니라 본인 GitHub 계정에 실제로 push 해야 다마고치의 표정이 바뀌며, 7일 연속 commit 이 없으면 다마고치가 사망합니다.
+
+### 1. 회원가입 단계 GitHub 계정 실존 검증 (`system()` + curl)
+- **호출 구조:** 회원가입 시 `src/account.c` 가 `scripts/github_check.sh` 를 `system()` 으로 호출합니다. 스크립트는 `curl` 로 GitHub REST API(`https://api.github.com/users/USER`)에 요청해 HTTP 상태코드를 받고, **200 이면 종료코드 0(존재), 404 면 1(없음)** 을 반환합니다. C 측은 `system()` 의 반환값만으로 가입 허용 여부를 판정합니다.
+- **셸 인젝션 차단:** username 을 셸 인자로 넘기기 전에 C 단에서 화이트리스트 검증(`[A-Za-z0-9-]`, 1~39자, 하이픈 시작/끝 금지 — GitHub 공식 username 규칙)을 통과시켜 셸 메타문자가 스크립트에 도달할 수 없게 설계했습니다.
+- **계정 저장:** 검증된 GitHub username 은 `accounts.txt` 의 3번째 필드(`id:hash:github`)에 저장되고, 로그인 시 로비가 `execl()` 의 `argv[2]` 로 game2 에 전달합니다.
+
+### 2. 실시간 PushEvent 미러링 (`popen()` 파이프라인)
+- **데이터 수집:** game2 는 `scripts/github_stats.sh` 를 `popen()` 으로 호출합니다. 스크립트는 `curl` 로 GitHub Events API(`/users/USER/events/public`)의 JSON 응답을 받아, `grep -oE` + `awk` 파이프라인으로 `"type": "PushEvent"` 와 `"created_at"` 필드만 추출합니다 (JSON 이 compact/pretty 어느 포맷이어도 매칭되도록 `:` 양옆 공백을 허용하는 정규식 사용).
+- **출력 규약:** 스크립트는 stdout 으로 정확히 2줄(① 마지막 PushEvent 로부터 지난 일수, ② 응답 내 PushEvent 총 개수)만 출력하고, 네트워크 오류·curl 미설치 등 모든 실패 상황에서도 기본값(`999` / `0`)을 출력해 **C 측 `fscanf` 파싱이 절대 깨지지 않도록** 방어적으로 설계했습니다.
+- **C 측 수신:** game2 는 `popen()` 으로 연 파이프에서 두 정수를 `fscanf` 로 읽고 `pclose()` 합니다. 인게임에서 `r` 키로 언제든 재조회(refresh)할 수 있습니다.
+
+### 3. 표정(생존 상태) 결정 로직
+마지막 commit 으로부터 경과한 일수와 최근 30일 push 활동량이 다마고치의 표정을 결정합니다.
+
+| 조건                                            | 표정              |
+| ----------------------------------------------- | ----------------- |
+| 마지막 push 로부터 7일 이상                     | `X X` 사망        |
+| 5~6일                                           | `T T` 빈사        |
+| 3~4일                                           | `u u` 슬픔        |
+| 1~2일 (또는 오늘 commit + 30일 push < 5)        | `o o` 보통        |
+| 오늘 commit + 30일 push 5 이상                  | `^ ^` 행복        |
+| 오늘 commit + 30일 push 20 이상                 | `> <` 매우행복    |
+| 오늘 commit + 30일 push 50 이상                 | `\(^o^)/` 전설    |
+
+### 4. 스크롤 없는 제자리 갱신 렌더링
+- 시작 시 단 한 번만 화면 전체를 비우고(`\033[2J\033[3J\033[H`), 이후 매 프레임은 커서를 좌상단으로만 되돌려(`\033[H`) **같은 자리에 덮어쓰는 HUD 방식**으로 그립니다.
+- 각 줄 끝에 `\033[K`(줄 끝까지 지우기)를 붙여 길이가 달라지는 줄의 이전 프레임 잔상을 제거하므로, 새로고침을 반복해도 터미널이 아래로 흐르지 않습니다.
+
+### 5. 점수 공식 및 회수
+```
+score = (마지막 push 7일 이내 ? 100 : 0)        # 살아있음 보너스
+      + max(0, 7 - days_since_commit) * 10      # 신선도 (0~70)
+      + min(commits_last_30d, 100)              # 활동량 (0~100)
+```
+- 최대 270 → 255 로 clamp 후 `exit(score)` 로 종료하며, 로비가 `WEXITSTATUS` 폴백 경로로 회수해 순위표에 기록합니다.
+- 점수를 올리는 유일한 방법은 **GitHub 에 실제로 commit 을 push** 하는 것입니다.
 
 ## 미니게임 3: 시스템 연동형 하드코어 테트리스 (game3)
 
@@ -356,6 +402,7 @@ InhaSystemProgramingPBL/
 │   ├── management_game/     # Modules sourced by game4.sh
 │   │   ├── change_turn.sh / input.sh / display.sh / resources.sh
 │   │   └── utils.sh / contracts_management.sh / market.sh / events.sh
+│   ├── game5.c / game5      # #5 Knight's Tour (source + binary)
 │   └── game_bash.sh         # Original bash VI-RPG (preserved)
 │
 └── sound/                   # WAV resource repository for hardware audio output
@@ -531,7 +578,7 @@ After `wait(&status)` returns, the parent recovers the score in the following or
 | Pipe value received | Meaning | Handling |
 | --- | --- | --- |
 | `-1` | `execl()` failure (missing binary) | Print build instructions |
-| `>= 0` | Score sent directly by the game (game3) | Recorded as-is, no 8-bit limit |
+| `>= 0` | Score sent directly by the game (game3/game5) | Recorded as-is, no 8-bit limit |
 | (empty) + normal exit | Exit-code scoring (`exit(score)` in game1/game2) | Recovered via `WEXITSTATUS` (0–255) |
 | (empty) + abnormal exit | Killed by a signal | Abnormal-termination warning |
 
