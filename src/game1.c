@@ -50,15 +50,18 @@
 #define SCORE_HP_BONUS      5
 #define SCORE_TURN_PENALTY  1
 
-/* 화면 좌표 (행 번호) */
-#define MAP_TOP        6
+/* 화면 좌표 (행 번호)
+ * 전체 UI 를 23행 안에 압축해 표준 24행 터미널에서도 스크롤이 일어나지 않게 한다.
+ * (바닥 행 너머로 \n 이 밀려나면 화면 전체가 위로 스크롤되어
+ *  GOTO 절대 좌표 기반의 맵 갱신과 어긋나 화면 고정이 깨진다.) */
+#define MAP_TOP        5                      /* 헤더 1~4행 바로 아래 */
 #define MAP_LEFT       3
-#define ROW_TURN       21
-#define ROW_STAT       22
-#define ROW_SCORE      23
-#define ROW_BOSS       25
-#define ROW_GOBLINS    26
-#define ROW_MSG        31
+#define ROW_SEP        (MAP_TOP + MAP_ROWS)   /* 18: 맵 아래 구분선 */
+#define ROW_TURN       19
+#define ROW_STAT       20                     /* Lv/ATK/Gold/Kill + SCORE 통합 */
+#define ROW_BOSS       21                     /* BOSS + 고블린 HP 통합 */
+#define ROW_HELP       22
+#define ROW_MSG        23
 
 /* ──────────────── 전역 상태 ──────────────── */
 static char board[MAP_ROWS][MAP_COLS];
@@ -255,33 +258,26 @@ static void draw_tile_at(int r, int c, int hi) {
 /* ──────────────── 전체 화면 1회 그리기 ──────────────── */
 static void draw_full_screen(void) {
     CLEAR_ALL();
+    /* 헤더 (1~4행). 이후 모든 출력은 GOTO 절대 좌표만 사용해
+     * 바닥 행에서 \n 으로 인한 화면 스크롤(=고정 깨짐)을 차단한다. */
     printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
     printf("  %s%s       >>>  VI-RPG : %s님의 모험  <<<%s\n", BOLD, BY, player_name, RST);
     printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
-    printf("\n");
-    printf("  %s%s[ 게임 맵 ]%s\n", BOLD, W, RST);
+    printf("  %s%s[ 게임 맵 ]%s", BOLD, W, RST);
 
     int r, c;
     for (r = 0; r < MAP_ROWS; r++) {
-        printf("  ");
         for (c = 0; c < MAP_COLS; c++) {
-            draw_tile_at(r, c, 0);
-            /* draw_tile_at가 GOTO를 호출하므로 칸 사이 공백은 위치 계산으로 자동 처리됨 */
+            draw_tile_at(r, c, 0);   /* GOTO 로 절대 좌표에 직접 그림 */
         }
-        printf("\n");
     }
 
-    /* 하단 레이아웃 placeholder */
-    GOTO(MAP_TOP + MAP_ROWS, 1);
-    printf("\n");
-    printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
-    printf("\n\n\n");
-    printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
-    printf("\n\n");
-    printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
-    printf("  이동:%sw/a/s/d%s  공격:%sSPACE%s  스킬:%se%s  종료:%sq%s\n",
+    /* 하단 푸터 */
+    GOTO(ROW_SEP, 1);
+    printf("  %s%s────────────────────────────────────────────────%s", BOLD, C_CYAN, RST);
+    GOTO(ROW_HELP, 1);
+    printf("  이동:%sw/a/s/d%s  공격:%sSPACE%s  스킬:%se%s  종료:%sq%s",
            BY, RST, BY, RST, BY, RST, BY, RST);
-    printf("  %s%s────────────────────────────────────────────────%s\n", BOLD, C_CYAN, RST);
 
     fflush(stdout);
 }
@@ -295,29 +291,23 @@ static void draw_status(void) {
     printf("  %sTURN %d%s  HP:%s%d%s/%d ", BOLD, turn, RST, hp_col, player_hp, RST, PLAYER_MAX_HP);
     print_hp_bar(player_hp, PLAYER_MAX_HP, hp_col);
 
-    /* Lv/ATK/Gold/Kill 줄 */
+    /* Lv/ATK/Gold/Kill + SCORE 줄 (24행 터미널에 맞춰 한 줄로 통합) */
     GOTO(ROW_STAT, 1); CLEAR_LINE();
-    printf("  %sLv:%d%s  %sATK:%d%s  %sGold:%d%s  %sKill:%d%s",
+    printf("  %sLv:%d%s  %sATK:%d%s  %sGold:%d%s  %sKill:%d%s  %s%s★ SCORE: %d%s",
            Y, player_level, RST, BY, player_attack, RST,
-           Y, player_gold, RST, GR, kill_count, RST);
+           Y, player_gold, RST, GR, kill_count, RST,
+           BOLD, BC, score, RST);
 
-    /* SCORE 줄 */
-    GOTO(ROW_SCORE, 1); CLEAR_LINE();
-    printf("  %s%s★ SCORE: %d%s", BOLD, BC, score, RST);
-
-    /* BOSS HP */
+    /* BOSS + 고블린 HP 줄 (한 줄로 통합) */
     int bhp = find_char_hp('B');
     const char *b_col = (bhp > BOSS_MAX_HP / 2) ? M : BR;
-    GOTO(ROW_BOSS, 1); CLEAR_LINE();
-    printf("  %s%sBOSS%s %s%d%s/%d ", BOLD, M, RST, b_col, bhp, RST, BOSS_MAX_HP);
-    print_hp_bar(bhp, BOSS_MAX_HP, b_col);
-
-    /* 고블린 HP */
     int g1 = find_char_hp('1');
     int g2 = find_char_hp('2');
     int g3 = find_char_hp('3');
-    GOTO(ROW_GOBLINS, 1); CLEAR_LINE();
-    printf("  %sG1:%d/%d%s  %sG2:%d/%d%s  %sG3:%d/%d%s",
+    GOTO(ROW_BOSS, 1); CLEAR_LINE();
+    printf("  %s%sBOSS%s %s%d%s/%d ", BOLD, M, RST, b_col, bhp, RST, BOSS_MAX_HP);
+    print_hp_bar(bhp, BOSS_MAX_HP, b_col);
+    printf("  %sG1:%d/%d%s %sG2:%d/%d%s %sG3:%d/%d%s",
            BR, g1, GOBLIN_MAX_HP, RST,
            BR, g2, GOBLIN_MAX_HP, RST,
            BR, g3, GOBLIN_MAX_HP, RST);

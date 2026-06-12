@@ -7,45 +7,50 @@
 
 ```
 InhaSystemProgramingPBL/
-├── Makefile                # 빌드 정의 (gcc + C99)
+├── Makefile                 # 빌드 정의 (gcc + C99)
 ├── README.md
 ├── .gitignore
 │
-├── src/                    # C 소스 코드
-│   ├── account.h           # 계정 모듈 인터페이스
-│   ├── account.c           # 회원가입 / 로그인 / 해시
-│   ├── score.h             # 점수 및 랭킹 모듈 인터페이스
-│   ├── score.c             # 최고점수 비교·갱신 / 시간 연산 / 순위표 출력
-│   └── lobby.c             # 메인 메뉴, 로비 진입점 (main)
+├── src/                     # C 소스 코드
+│   ├── account.h            # 계정 모듈 인터페이스
+│   ├── account.c            # 회원가입 / 로그인 / 해시 / GitHub 계정 검증
+│   ├── score.h              # 점수 및 랭킹 모듈 인터페이스
+│   ├── score.c              # 최고점수 비교·갱신 / 시간 연산 / 순위표 출력
+│   ├── game1.c              # 1번 미니게임 VI-RPG 소스 (bash 원작을 C로 포팅)
+│   └── lobby.c              # 메인 메뉴, 로비 진입점 (main)
 │
-├── scripts/                # 빌드·실행 sh 스크립트
-│   ├── init.sh             # data/ 디렉토리·빈 파일 생성
-│   ├── build.sh            # gcc 컴파일 → bin/lobby
-│   ├── run.sh              # 빌드 후 실행
-│   └── clean.sh            # bin/ 정리 (data/ 보존)
+├── scripts/                 # 빌드·실행·연동 sh 스크립트
+│   ├── init.sh              # data/ 디렉토리·빈 파일 생성
+│   ├── build.sh             # gcc 컴파일 → bin/lobby + games/game1~3
+│   ├── run.sh               # 빌드 후 실행
+│   ├── clean.sh             # bin/, games/ 바이너리 정리 (data/ 보존)
+│   ├── github_check.sh      # GitHub username 존재 확인 (회원가입 시 system 호출)
+│   ├── github_stats.sh      # GitHub PushEvent 수집 (game2 가 popen 호출)
+│   ├── play_sound_tetris.sh # 테트리스 효과음 비동기 재생 (game3 가 system 호출)
+│   └── sys_monitor.sh       # 호스트 CPU 사용량 파싱 (game3 가 popen 호출)
 │
-├── data/                   # 런타임 데이터 (git 추적 제외)
-│   └── accounts.txt        # username:hash 형식의 계정 저장소
-│   └── scores.txt          # game_num:username:score:time 형식의 점수 저장소
+├── data/                    # 런타임 데이터 (git 추적 제외)
+│   ├── accounts.txt         # id:hash:github 형식의 계정 저장소
+│   └── scores.txt           # game_num:username:score:time 형식의 점수 저장소
 │
-└── bin/                    # 빌드 산출물 (git 추적 제외)
-│   └── lobby               # 컴파일된 실행파일
+├── bin/                     # 빌드 산출물 (git 추적 제외)
+│   └── lobby                # 컴파일된 로비 실행파일
 │
-└── games/                  # 독립 실행형 미니게임 바이너리 저장소
-│   └── game1               # 1번 미니게임 RPG
-│   ├── game2               # 2번 다마고치 게임
-│   └── game3               # 3번 미니게임 테트리스
+├── games/                   # 독립 프로세스로 구동되는 미니게임 모음
+│   ├── game1                # 1번 VI-RPG (src/game1.c 빌드 산출물)
+│   ├── game2.c / game2      # 2번 GitHub 다마고치 (소스 + 빌드 산출물)
+│   ├── game3.c / game3      # 3번 VI-TETRIS (소스 + 빌드 산출물)
+│   ├── game4.sh             # 4번 자원 경영 시뮬레이션 진입 스크립트 (bash)
+│   ├── management_game/     # game4.sh 가 source 하는 모듈 모음
+│   │   ├── change_turn.sh / input.sh / display.sh / resources.sh
+│   │   └── utils.sh / contracts_management.sh / market.sh / events.sh
+│   └── game_bash.sh         # VI-RPG bash 원작 (보존용)
 │
-├── scripts/
-│   ├── ...
-│   ├── play_sound_tetris.sh # [추가] 테트리스 효과음 비동기 재생 제어 셸 스크립트
-│   └── sys_monitor.sh      # [추가] OS 호스트 커널 CPU 사용량 실시간 파싱 스크립트
-│
-└── sound/                  # [추가] 하드웨어 오디오 출력을 위한 WAV 리소스 저장소
-    ├── game3_lock.wav      # 블록 고정 효과음
-    ├── game3_clear.wav     # 라인 클리어 효과음
-    ├── game3_perfectclear.wav # 퍼펙트 클리어 업적 효과음
-    └── game3_gameover.wav  # 게임 오버 효과음
+└── sound/                   # 하드웨어 오디오 출력을 위한 WAV 리소스 저장소
+    ├── game3_lock.wav       # 블록 고정 효과음
+    ├── game3_clear.wav      # 라인 클리어 효과음
+    ├── game3_PerfectClear.wav # 퍼펙트 클리어 업적 효과음
+    └── game3_gameover.wav   # 게임 오버 효과음
 ```
 
 ## 디렉토리 역할
@@ -55,7 +60,7 @@ InhaSystemProgramingPBL/
 | `src/`     | C 소스 / 헤더. 모든 구현 코드가 위치       |
 | `scripts/` | sh 스크립트 (빌드·실행·초기화·정리)        |
 | `data/`    | 사용자 데이터 (계정 등). 로컬 전용         |
-| `games/`	 | 독립 프로세스로 구동될 게임 바이너리 모음    |
+| `games/`	 | 독립 프로세스로 구동될 게임 모음 (바이너리 + game4.sh 스크립트 + 모듈)    |
 | `bin/`     | gcc 컴파일 산출물. `make clean` 시 삭제됨  |
 | `sound/`   | 게임에서 사용할 오디오 서브시스템 리소스 저장소  |
 
@@ -79,35 +84,47 @@ flowchart TD
     Menu -->|2 로그인| Login["ID · PW 입력"]
     Login --> Verify{"hash_credential 일치?"}
     Verify -->|불일치| Menu
-    Verify -->|일치| Lobby{"로비 메뉴<br/>1·2 게임 / 9 순위표 / 0 로그아웃"}
+    Verify -->|일치| Lobby{"로비 메뉴<br/>1~4 게임 / 9 순위표 / 0 로그아웃"}
 
     Menu -->|0 종료| End([프로그램 종료])
 
     %% ---- 게임 실행 공통 ----
-    Lobby -->|1, 2, 3 선택| Fork[["fork() + pipe()<br/>자식 프로세스 생성"]]
-    Fork --> Exec["execl(games/gameN, ...)<br/>argv[1]=ID, argv[2]=github"]
+    Lobby -->|1~4 선택| Fork[["fork() + pipe()<br/>자식 프로세스 생성<br/>(로비는 SIGINT 잠시 무시)"]]
+    Fork --> Exec["execl(games/gameN, ...)<br/>argv[1]=ID, argv[2]=github, argv[3]=파이프 fd"]
+    Exec -->|execl 실패| ExecFail["파이프에 -1 write<br/>바이너리 누락 안내"]
+    ExecFail --> Lobby
+
+    %% ---- Game 1 분기 (VI-RPG) ----
+    Exec --> G1["game1 : VI-RPG<br/>(bash 원작의 C 포팅)"]
+    G1 -->|게임 종료| ExitScore1["exit(score) 종료코드 반환"]
 
     %% ---- Game 2 분기 ----
     Exec --> G2["game2 : GitHub Tamagotchi"]
     G2 --> Stats["github_stats.sh (popen)<br/>마지막 push 일수 · PushEvent 개수"]
     Stats --> Face["표정 렌더링 (제자리 갱신)<br/>r / q 입력 대기"]
     Face -->|r 새로고침| Stats
-    Face -->|q 종료| ExitScore["exit(score)"]
+    Face -->|q 종료| ExitScore["exit(score) 종료코드 반환"]
 
     %% ---- Game 3 분기 (테트리스 시스템 연동) ----
-    Exec --> G3["game3 : High-Performance Tetris"]
+    Exec --> G3["game3 : VI-TETRIS"]
     G3 --> SysMon["sys_monitor.sh (popen)<br/>호스트 커널 CPU 사용량 실시간 수집"]
     SysMon --> SpeedMod["CPU 부하 연동형 타이머 변조<br/>drop_interval 실시간 가속"]
     SpeedMod --> GameLoop{"인게임 루프<br/>키 입력 / 타이머 하강"}
-    
+
     GameLoop -->|블록 고정 / 라인 제거 / 올클리어| SndScript["play_sound_tetris.sh (system)<br/>aplay 백그라운드 & 비동기 효과음 재생"]
     SndScript --> GameLoop
-    
-    GameLoop -->|q 입력 / Game Over| ExitScore3["exit(score)"]
+
+    GameLoop -->|q 입력 / Game Over| PipeScore["argv[3] 파이프에 score write<br/>(8bit 제한 없는 대형 점수)"]
+
+    %% ---- Game 4 분기 (자원 경영 시뮬레이션) ----
+    Exec --> G4["game4.sh : Management Game (bash)<br/>management_game/ 모듈 source"]
+    G4 -->|Ctrl+C 종료| G4End["점수 기록 없음<br/>(로비는 SIGINT 무시로 생존)"]
+    G4End --> Lobby
 
     %% ---- 자식 종료 및 결산 공통 ----
-    ExitScore --> Wait["부모: wait(&status) + WEXITSTATUS<br/>자식 종료코드=점수 회수"]
-    ExitScore3 --> Wait
+    ExitScore1 --> Wait["부모 점수 회수 프로토콜:<br/>① 파이프 값 -1 → 실행 실패<br/>② 파이프 값 ≥0 → 그대로 점수 (game3)<br/>③ 파이프 비어있음 → wait() + WEXITSTATUS (game1·2)"]
+    ExitScore --> Wait
+    PipeScore --> Wait
     Wait --> SaveScore[("scores.txt<br/>최고점수 비교·갱신")]
     SaveScore --> Lobby
 
@@ -133,6 +150,7 @@ C 표준 라이브러리만 사용:
 - `<sys/select.h>` — I/O 멀티플렉싱 커널 시스템 콜. 마이크로초 단위의 비동기 키 입력 감지 타이머 타임아웃 처리 (`select`)
 - `<sys/wait.h>` — 자식 프로세스 생명 주기 관리 및 커널 시그널 추적 인터페이스 (`wait`)
 - `<termios.h>` — 터미널 I/O 특성 변경 인터페이스. 버퍼 없는 로우 모드(Raw Mode) 진입 및 키 에코 차단 (`tcgetattr`, `tcsetattr`)
+- `<signal.h>` — ISO C 표준 시그널 처리. 게임 실행 중 로비가 Ctrl+C(SIGINT)에 죽지 않도록 보호 (`signal`, `SIG_IGN`)
 
 비밀번호 에코 차단은 `system("stty -echo")` 호출로 처리 (POSIX 헤더 미사용).
 
@@ -150,9 +168,11 @@ make run
 
 `data/accounts.txt`:
 ```
-username:hashvalue
+id:hashvalue:github_username
 ```
 한 줄에 한 계정. 비밀번호는 djb2 변형 해시 + 아이디 솔트로 저장.
+github 필드는 회원가입 시 `scripts/github_check.sh` 로 실존 여부를 검증한 GitHub username (game2 가 사용).
+구버전 2필드(`id:hash`) 계정은 로그인 시 id 를 github 으로 폴백.
 
 `data/scores.txt`:
 ```
@@ -213,10 +233,10 @@ djb2 의 XOR 변종을 사용하며, 아이디를 솔트(salt)로 함께 섞습�
 
 > `(h << 5) + h == h * 33` — 곱셈 대신 시프트+덧셈으로 빠르게 계산하는 djb2 의 관용구. 본 프로젝트는 원본 djb2 의 `+` 대신 `^`(XOR) 을 사용한 변종.
 
-저장 결과 (`data/accounts.txt`):
+저장 결과 (`data/accounts.txt`, github 필드 포함 3필드):
 
 ```
-yechan:13795222493806861027
+yechan:13795222493806861027:yechan03
 ```
 
 로그인 시 `hash_credential("yechan", 입력된_비번)` 을 다시 계산해 저장된 정수와 단순 비교만 수행합니다. 원본 비밀번호는 디스크 어디에도 남지 않습니다.
@@ -229,17 +249,26 @@ yechan:13795222493806861027
 
 자식 프로세스는 `games/game1`과 같은 독립 실행형 바이너리 경로를 찾아 `execl()`을 호출함으로써, 자신의 메모리 공간을 해당 미니게임 프로그램으로 완전 대체합니다.
 
-이때, 로그인된 사용자의 ID(`username`)를 프로그램 인자(`argv[1]`)로 안전하게 넘겨주어 게임 내 무결성을 유지합니다.
+이때, 로그인된 사용자의 ID(`argv[1]`), GitHub username(`argv[2]`), 점수 전달용 파이프 fd(`argv[3]`)를 프로그램 인자로 안전하게 넘겨줍니다. game4 는 컴파일 바이너리가 아닌 bash 스크립트(`games/game4.sh`)지만, 커널이 `#!/bin/bash` 셔뱅을 해석하므로 동일한 `execl()` 경로로 실행됩니다.
 
 2. 파이프(`pipe`)를 활용한 실행 파일 누락 예외 처리
 `execl()`이 실패할 경우(게임 바이너리가 컴파일되지 않았거나 누락된 경우)를 대비하여, `fork()` 직전 익명 파이프(`pipe`)를 개설합니다.
 
-자식이 `execl()`에 실패하면 파이프에 에러 시그널을 쓰고 즉시 종료됩니다.
+자식이 `execl()`에 실패하면 파이프에 에러 신호(`-1`)를 쓰고 즉시 종료됩니다. 점수는 항상 0 이상이므로 -1 은 실행 실패 전용 신호로 안전합니다.
 
 부모 프로세스는 이 파이프 신호를 감지하여 게임 파일 누락 에러를 정확하게 판정합니다. 이로 인해 유저가 실제 미니게임에서 정직하게 점수를 획득하고 정상 종료했을 때 에러로 오인하는 충돌 버그를 완벽히 차단합니다.
 
-3. 종료 코드 기반 점수 회수 (`wait & WEXITSTATUS`)
-미니게임이 정상 종료되면서 `exit(final_score);`를 호출하면, 부모 프로세스는 커널 단계에서 `wait(&status)`로 대기하다가 `WEXITSTATUS(status)`를 통해 소멸한 자식이 남긴 점수를 안전하게 가로챕니다.
+3. 하이브리드 점수 회수 프로토콜 (파이프 우선, 종료 코드 폴백)
+부모 프로세스는 `wait(&status)`로 자식 종료를 대기한 뒤, 다음 순서로 점수를 회수합니다.
+
+| 파이프 수신 값 | 해석 | 처리 |
+| --- | --- | --- |
+| `-1` | `execl()` 실패 (바이너리 누락) | 빌드 안내 출력 |
+| `0 이상` | 게임이 직접 보낸 점수 (game3) | 8bit 제한 없이 그대로 기록 |
+| (비어있음) + 정상 종료 | 종료코드 점수 방식 (game1·game2 의 `exit(score)`) | `WEXITSTATUS` 로 회수 (0~255) |
+| (비어있음) + 비정상 종료 | 시그널 등 강제 소멸 | 비정상 종료 경고 |
+
+game4(경영 시뮬레이션)는 점수 개념이 없어 회수 대상에서 제외되며, Ctrl+C 로 종료해도 로비가 함께 죽지 않도록 게임 실행 중에는 로비가 `signal(SIGINT, SIG_IGN)` 으로 인터럽트를 잠시 무시합니다.
 
 ### 최고 점수 및 순위표(Leaderboard) 출력 포맷
 로비 메뉴에서 랭킹 조회를 요청할 경우, C 표준 printf 서식 지정자를 활용하여 터미널 환경에 가독성 높은 격자 대시보드를 출력합니다.
@@ -273,6 +302,14 @@ yechan:13795222493806861027
 - **DT포 월 킥 구현:** 정석 가이드라인의 5단계 오프셋 매트릭스(`wall_kick_data`) 좌표계를 리눅스 터미널 가상 화면 좌표계(아래로 갈수록 Y축 증가)와 수학적으로 동기화하여, 최고난도 기술인 **DT포(DT Cannon) T-스핀 트리플(T-Spin Triple) 월킥** 유격 보정을 완벽하게 가동 성공시켰습니다.
 - **퍼펙트 클리어 판정:** 라인 제거 직후 보드판 전체 세그먼트의 청정 여부를 전수 스캔하는 `is_perfect_clear()` 알고리즘을 장착, 올클리어 성공 시 보너스 점수(+500점) 가산 및 전용 특수 효과음 파이프라인이 정상 트리거되도록 밸런싱했습니다.
 
+## 미니게임 4: 자원 경영 시뮬레이션 (game4)
+
+4번 미니게임은 **순수 bash 로 구현한 턴제 자원 경영 시뮬레이션**입니다. 석탄·철광석·철·강철 자원을 사고팔고, 광산·공장을 건설하며, 계약과 시장 가격 변동·랜덤 이벤트 속에서 자금을 불려 나갑니다.
+
+- **모듈 구조:** 진입점은 `games/game4.sh` 하나이며, 실제 로직은 `games/management_game/` 디렉토리의 모듈 8개(`change_turn.sh`, `input.sh`, `display.sh`, `resources.sh`, `utils.sh`, `contracts_management.sh`, `market.sh`, `events.sh`)를 `source` 로 조립합니다. 모듈 경로는 `$(dirname "$0")` 기준이라 어느 위치에서 실행해도 안전합니다.
+- **로비 연동:** 다른 게임과 동일하게 `fork()` + `execl()` 로 실행됩니다. bash 스크립트지만 커널의 셔뱅(`#!/bin/bash`) 해석 덕분에 바이너리와 같은 경로로 구동됩니다.
+- **종료 방식:** 메뉴 내 종료 명령이 없어 `Ctrl+C` 로 종료합니다. 게임 실행 동안 로비는 `SIGINT` 를 무시하므로 Ctrl+C 를 눌러도 로비 메뉴로 안전하게 복귀합니다. 점수 기록은 없습니다 (추후 argv[3] 파이프에 점수를 쓰면 자동으로 순위표에 연동됩니다).
+
 # System Programming PBL
 
 System Programming PBL project from Inha University.  
@@ -286,41 +323,46 @@ InhaSystemProgramingPBL/
 ├── README.md
 ├── .gitignore
 │
-├── src/                    # C source code
-│   ├── account.h           # Account module interface
-│   ├── account.c           # Sign-up / login / hashing
-│   ├── score.h             # Score & ranking module interface
-│   ├── score.c             # High-score comparison & update / time operations / leaderboard output
-│   └── lobby.c             # Main menu and lobby entry point (main)
+├── src/                     # C source code
+│   ├── account.h            # Account module interface
+│   ├── account.c            # Sign-up / login / hashing / GitHub account verification
+│   ├── score.h              # Score & ranking module interface
+│   ├── score.c              # High-score comparison & update / time operations / leaderboard output
+│   ├── game1.c              # Mini-game #1 VI-RPG source (ported from the bash original)
+│   └── lobby.c              # Main menu and lobby entry point (main)
 │
-├── scripts/                # Build & execution shell scripts
-│   ├── init.sh             # Creates data/ directory and empty files
-│   ├── build.sh            # gcc compilation → bin/lobby
-│   ├── run.sh              # Build and execute
-│   └── clean.sh            # Cleans bin/ (preserves data/)
+├── scripts/                 # Build, execution & integration shell scripts
+│   ├── init.sh              # Creates data/ directory and empty files
+│   ├── build.sh             # gcc compilation → bin/lobby + games/game1~3
+│   ├── run.sh               # Build and execute
+│   ├── clean.sh             # Cleans bin/ and game binaries (preserves data/)
+│   ├── github_check.sh      # GitHub username existence check (called via system on sign-up)
+│   ├── github_stats.sh      # GitHub PushEvent collection (called via popen by game2)
+│   ├── play_sound_tetris.sh # Asynchronous tetris audio playback (called via system by game3)
+│   └── sys_monitor.sh       # Host CPU usage parsing (called via popen by game3)
 │
-├── data/                   # Runtime data (excluded from git tracking)
-│   ├── accounts.txt        # Account storage in username:hash format
-│   └── scores.txt          # Score storage in game_num:username:score:time format
+├── data/                    # Runtime data (excluded from git tracking)
+│   ├── accounts.txt         # Account storage in id:hash:github format
+│   └── scores.txt           # Score storage in game_num:username:score:time format
 │
-├── bin/                    # Build artifacts (excluded from git tracking)
-│   └── lobby               # Compiled executable
+├── bin/                     # Build artifacts (excluded from git tracking)
+│   └── lobby                # Compiled lobby executable
 │
-├── games/                  # Standalone mini-game binary repository
-│   ├── game1               # Executable for mini-game #1
-│   ├── game2               # Executable for mini-game #2 (GitHub Tamagotchi)
-│   └── game3               # Executable for mini-game #3 (Hardcore System Tetris)
+├── games/                   # Mini-games executed as independent processes
+│   ├── game1                # #1 VI-RPG (built from src/game1.c)
+│   ├── game2.c / game2      # #2 GitHub Tamagotchi (source + binary)
+│   ├── game3.c / game3      # #3 VI-TETRIS (source + binary)
+│   ├── game4.sh             # #4 Resource management simulation entry script (bash)
+│   ├── management_game/     # Modules sourced by game4.sh
+│   │   ├── change_turn.sh / input.sh / display.sh / resources.sh
+│   │   └── utils.sh / contracts_management.sh / market.sh / events.sh
+│   └── game_bash.sh         # Original bash VI-RPG (preserved)
 │
-├── scripts/                # Build & execution shell scripts
-│   ├── ...
-│   ├── play_sound_tetris.sh # Shell script for asynchronous tetris audio playback control
-│   └── sys_monitor.sh      # Shell script for parsing host kernel CPU usage in real-time
-│
-└── sound/                  # WAV resource repository for hardware audio output
-    ├── game3_lock.wav      # Block locking sound
-    ├── game3_clear.wav     # Line clear sound
-    ├── game3_perfectclear.wav # Perfect clear achievement sound
-    └── game3_gameover.wav  # Game over sound
+└── sound/                   # WAV resource repository for hardware audio output
+    ├── game3_lock.wav       # Block locking sound
+    ├── game3_clear.wav      # Line clear sound
+    ├── game3_PerfectClear.wav # Perfect clear achievement sound
+    └── game3_gameover.wav   # Game over sound
 ```
 
 ## Directory Roles
@@ -330,7 +372,7 @@ InhaSystemProgramingPBL/
 | `src/`     | C source/header files. Contains all implementation code |
 | `scripts/` | Shell scripts (build, run, initialize, clean) |
 | `data/`    | User data storage (accounts, etc.). Local-only |
-| `games/`   | Collection of game binaries executed as independent processes |
+| `games/`   | Games executed as independent processes (binaries + game4.sh script + modules) |
 | `bin/`     | gcc build artifacts. Removed by `make clean` |
 | `sound/`     | Audio subsystem resource directory |
 
@@ -364,10 +406,11 @@ make run
 
 `data/accounts.txt`:
 ```text
-username:hashvalue
+id:hashvalue:github_username
 ```
 
 One account per line. Passwords are stored using a modified djb2 hash combined with username-based salting.
+The github field holds a GitHub username verified to exist via `scripts/github_check.sh` at sign-up (used by game2).
 
 `data/scores.txt`:
 ```text
@@ -471,35 +514,28 @@ When a user selects a mini-game from the lobby, the lobby creates a child proces
 
 The child process locates an independent executable such as `games/game1` and calls `execl()` to completely replace its own memory space with the mini-game program.
 
-The currently authenticated user's ID (`username`) is securely passed as a program argument (`argv[1]`) to preserve in-game integrity.
+The authenticated user's ID (`argv[1]`), GitHub username (`argv[2]`), and the score pipe fd (`argv[3]`) are securely passed as program arguments. game4 is a bash script (`games/game4.sh`) rather than a compiled binary, but the kernel's shebang (`#!/bin/bash`) handling lets it run through the very same `execl()` path.
 
 #### 2. Missing Executable Exception Handling Using `pipe`
 
 To handle situations where `execl()` fails (for example, when the game binary is missing or not compiled), an anonymous pipe (`pipe`) is created immediately before `fork()`.
 
-If `execl()` fails, the child process writes an error signal into the pipe and exits immediately.
+If `execl()` fails, the child process writes an error signal (`-1`) into the pipe and exits immediately. Since scores are always non-negative, `-1` is a safe failure-only sentinel.
 
 The parent process monitors this pipe signal to accurately detect missing game files. This completely prevents collision bugs where a legitimate game termination could mistakenly be interpreted as an execution failure.
 
-#### 3. Score Retrieval via Exit Codes (`wait` & `WEXITSTATUS`)
+#### 3. Hybrid Score Retrieval Protocol (pipe first, exit-code fallback)
 
-When the mini-game terminates normally using:
+After `wait(&status)` returns, the parent recovers the score in the following order:
 
-```c
-exit(final_score);
-```
+| Pipe value received | Meaning | Handling |
+| --- | --- | --- |
+| `-1` | `execl()` failure (missing binary) | Print build instructions |
+| `>= 0` | Score sent directly by the game (game3) | Recorded as-is, no 8-bit limit |
+| (empty) + normal exit | Exit-code scoring (`exit(score)` in game1/game2) | Recovered via `WEXITSTATUS` (0–255) |
+| (empty) + abnormal exit | Killed by a signal | Abnormal-termination warning |
 
-the parent process waits at the kernel level using:
-
-```c
-wait(&status);
-```
-
-and safely retrieves the score left by the terminated child process through:
-
-```c
-WEXITSTATUS(status)
-```
+game4 (management simulation) has no scoring and is excluded from retrieval. While a game is running, the lobby temporarily ignores `SIGINT` (`signal(SIGINT, SIG_IGN)`) so that quitting game4 with Ctrl+C does not kill the lobby itself.
 
 ### High Score & Leaderboard Output Format
 
