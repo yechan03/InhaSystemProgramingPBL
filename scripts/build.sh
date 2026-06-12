@@ -29,6 +29,10 @@ if [ -f games/game3.c ]; then
     $CC $CFLAGS games/game3.c -o games/game3
     echo "[OK] games/game3 생성 완료"
 fi
+if [ -f games/game5.c ]; then
+    $CC $CFLAGS games/game5.c -o games/game5
+    echo "[OK] games/game5 생성 완료"
+fi
 
 # 3. game4 는 bash 스크립트: execl 실행에 필요한 +x 권한 보장
 if [ -f games/game4.sh ]; then

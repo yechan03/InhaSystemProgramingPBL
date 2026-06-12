@@ -87,6 +87,7 @@ static void lobby_menu(const char *user, const char *github) {
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
         printf(" 4) Game4 (Management Game : 자원 경영 시뮬레이션, 종료는 Ctrl+C)\n");
+        printf(" 5) Game5 (Knight's Tour : 기사의 여행)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -100,7 +101,7 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
             return;
         }
-        else if(sel >= 1 && sel <= 4){
+        else if(sel >= 1 && sel <= 5){
             printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
@@ -138,8 +139,6 @@ static void lobby_menu(const char *user, const char *github) {
                 sprintf(game_name, "game%d", sel);
 
                 // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
-                // argv[0]=게임이름, argv[1] = 로그인 ID (game1 호환), argv[2] = GitHub username (game2 가 사용), argv[3]=파이프식별번호(점수 공유)
-                // 미니게임 측에서 파이프에 점수를 쓸 수 있도록 argv[3] 위치에 파이프 번호를 넘겨준다.
                 execl(game_path, game_name, user, github, pipe_fd_str, (char *)NULL);
 
                 // execl이 실패했을 경우
@@ -163,7 +162,7 @@ static void lobby_menu(const char *user, const char *github) {
                 /* ── 점수 회수 프로토콜 ──
                  * 자식이 파이프에 쓴 4바이트 int 를 읽는다.
                  *   received_data == -1 : execl 실패 신호 (게임 바이너리 없음)
-                 *   received_data >=  0 : 게임이 직접 보낸 최종 점수 (game3, 255점 초과 가능)
+                 *   received_data >=  0 : 게임이 직접 보낸 최종 점수 (game3/game5, 255점 초과 가능)
                  *   nbytes == 0         : 파이프 미사용 게임 (game1/game2)
                  *                         → 종료코드(WEXITSTATUS, 0~255)에서 점수 회수
                  */
@@ -186,7 +185,7 @@ static void lobby_menu(const char *user, const char *github) {
                     int game_score = -1;
 
                     if (nbytes > 0) {
-                        // 파이프 점수 방식 (game3): 8bit 제한 없이 큰 점수 그대로 수신
+                        // 파이프 점수 방식 (game3/game5): 8bit 제한 없이 큰 점수 그대로 수신
                         game_score = received_data;
                     }
                     else if (sel != 4 && WIFEXITED(status)) {
@@ -215,7 +214,7 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
         }
         else if(sel == 9){
-            show_leaderboard();// leader board를 보여주는 함수(score.h에 포함)
+            show_leaderboard();
             pause_enter();
         }
         else{
