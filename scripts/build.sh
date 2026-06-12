@@ -24,3 +24,7 @@ if [ -f games/game2.c ]; then
     $CC $CFLAGS games/game2.c -o games/game2
     echo "[OK] games/game2 생성 완료"
 fi
+if [ -f games/game3.c ]; then
+    $CC $CFLAGS games/game3.c -o games/game3
+    echo "[OK] games/game3 생성 완료"
+fi

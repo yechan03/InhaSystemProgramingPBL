@@ -3,10 +3,8 @@
 #include <string.h>
 #include "account.h"
 
-#include <unistd.h>// fork(), execl() 함수 원형이 들어있는 헤더
-#include <sys/types.h>// pid_t 자료형 정의가 들어있는 헤더
+#include <unistd.h>// fork(), execl() 함수 원형, pid_t 자료형 정의가 들어있는 헤더
 #include <sys/wait.h>// wait(), WIFEXITED, WEXITSTATUS 매크로가 들어있는 헤더
-// 세 헤더 모두 강의노트에서 사용한 헤더(수업시간에 물어보고 사용 불가능하다고 하면 수정할 것)
 #include "score.h"
 
 static void read_line(char *buf, size_t n) {
@@ -86,6 +84,7 @@ static void lobby_menu(const char *user, const char *github) {
         printf(" (미니게임 기능은 팀 협의 후 추가 예정)\n");
         printf(" 1) Game1\n");
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
+        printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -99,10 +98,10 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
             return;
         }
-        else if(sel == 1 || sel == 2){
+        else if(sel >= 1 && sel <= 3){
             printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
-            // 부모와 자식 간의 실행 실패 공유를 위한 파이프 생성
+            // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
             int exec_pipe[2];
             if (pipe(exec_pipe) < 0) {
                 perror("[X] Pipe 생성 실패");
@@ -122,6 +121,10 @@ static void lobby_menu(const char *user, const char *github) {
                 // =========== 자식 프로세스 영역 ===========
                 close(exec_pipe[0]); // 읽기 전용 포트는 닫음
                 
+                // 부모와 연결된 파이프 쓰기 포트(exec_pipe[1]) 번호를 문자열로 변환
+                char pipe_fd_str[16];
+                sprintf(pipe_fd_str, "%d", exec_pipe[1]);
+
                 char game_path[32];
                 char game_name[16];
                 
@@ -130,8 +133,9 @@ static void lobby_menu(const char *user, const char *github) {
                 sprintf(game_name, "game%d", sel);
 
                 // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
-                // argv[1] = 로그인 ID (game1 호환), argv[2] = GitHub username (game2 가 사용)
-                execl(game_path, game_name, user, github, (char *)NULL);
+                // argv[0]=게임이름, argv[1] = 로그인 ID (game1 호환), argv[2] = GitHub username (game2 가 사용), argv[3]=파이프식별번호(점수 공유)
+                // 미니게임 측에서 파이프에 점수를 쓸 수 있도록 argv[3] 위치에 파이프 번호를 넘겨준다.
+                execl(game_path, game_name, user, github, pipe_fd_str, (char *)NULL);
 
                 // execl이 실패했을 경우 
                 int error_signal = 1;
@@ -146,35 +150,31 @@ static void lobby_menu(const char *user, const char *github) {
                 // =========== 부모 프로세스 영역 ===========
                 close(exec_pipe[1]); // 쓰기 전용 포트는 닫음
 
-                int error_signal = 0;
-                // 자식이 execl에 실패하여 파이프에 값을 썼는지 확인
-                int nbytes = read(exec_pipe[0], &error_signal, sizeof(error_signal));
+                // 자식이 파이프에 직접 write한 4바이트 int형 데이터를 정밀 수집
+                // 자식이 execl에 실패하여 파이프에 값을 썼는지 확인 + 자식이 넘겨주는 최종 점수 수집
+                int received_data = 0;
+                int nbytes = read(exec_pipe[0], &received_data, sizeof(received_data));
                 close(exec_pipe[0]);
+                
                 
                 int status;
                 // 자식 프로세스가 종료될 때까지 대기
                 wait(&status); 
 
-                while (getchar() != '\n' && getchar() != EOF); 
-
-                // 파이프를 통해 자식이 execl에 실패한 것이 확인된 경우
-                if (nbytes > 0 && error_signal == 1) {
+                // 자식이 파이프에 에러 신호(-1)를 남겼거나, 아무것도 쓰지 못하고 강제 소멸한 경우
+                if (nbytes <= 0 || received_data == -1) {
                     printf("\n[X] 오류: 게임 프로그램 파일이 존재하지 않거나 실행할 수 없습니다.\n");
                     printf("[INFO] scripts/build.sh 를 실행하여 게임 바이너리를 생성하세요.\n");
-                } 
+                }
                 // 자식이 정상적으로 execl을 거쳐 게임을 플레이하고 종료된 경우
-                else if (WIFEXITED(status)) {
-                    // 게임이 exit(score)로 남긴 점수를 가져오기
-                    int game_score = WEXITSTATUS(status);
+                else {
                     printf("\n=========================================\n");
                     printf("[OK] 게임이 정상 종료되었습니다.\n");
-                    printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, game_score);
+                    printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, received_data);
                     printf("=========================================\n");
                     
-                    save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
-                } else {
-                    printf("\n[X] 경고: 게임 프로세스가 비정상적으로 종료되었습니다.\n");
-                }
+                    save_high_score(sel, user, received_data);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
+                } 
             }
             pause_enter();
         }
