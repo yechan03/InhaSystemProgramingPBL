@@ -85,6 +85,8 @@ static void lobby_menu(const char *user, const char *github) {
         printf(" 1) Game1\n");
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
+        printf(" 4) Game4\n"); // 💡 다른 팀원이 쓸 자리니 그대로 둡니다.
+        printf(" 5) Game5 (Knight's Tour : 기사의 여행)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -98,7 +100,8 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
             return;
         }
-        else if(sel >= 1 && sel <= 3){
+        // ======= 💡 2. 선택 범위를 4까지로 확장 (sel <= 4) =======
+        else if(sel >= 1 && sel <= 5){
             printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
@@ -128,18 +131,15 @@ static void lobby_menu(const char *user, const char *github) {
                 char game_path[32];
                 char game_name[16];
                 
-                // 실행 파일 경로 규칙 지정 (예: games/game1)
+                // 실행 파일 경로 규칙 지정 (sel이 4일 때 자동으로 games/game4가 됨)
                 sprintf(game_path, "games/game%d", sel);
                 sprintf(game_name, "game%d", sel);
 
                 // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
-                // argv[0]=게임이름, argv[1] = 로그인 ID (game1 호환), argv[2] = GitHub username (game2 가 사용), argv[3]=파이프식별번호(점수 공유)
-                // 미니게임 측에서 파이프에 점수를 쓸 수 있도록 argv[3] 위치에 파이프 번호를 넘겨준다.
                 execl(game_path, game_name, user, github, pipe_fd_str, (char *)NULL);
 
                 // execl이 실패했을 경우 
-                int error_signal = 1;
-                // 부모에게 실행 실패 신호(1)를 파이프로 전송
+                int error_signal = -1; // 팀원 규약: 실패 시 -1 송신 (기존 코드 하단 조건식 nbytes <= 0 || received_data == -1 매칭)
                 write(exec_pipe[1], &error_signal, sizeof(error_signal));
                 close(exec_pipe[1]);
                 
@@ -151,11 +151,9 @@ static void lobby_menu(const char *user, const char *github) {
                 close(exec_pipe[1]); // 쓰기 전용 포트는 닫음
 
                 // 자식이 파이프에 직접 write한 4바이트 int형 데이터를 정밀 수집
-                // 자식이 execl에 실패하여 파이프에 값을 썼는지 확인 + 자식이 넘겨주는 최종 점수 수집
                 int received_data = 0;
                 int nbytes = read(exec_pipe[0], &received_data, sizeof(received_data));
                 close(exec_pipe[0]);
-                
                 
                 int status;
                 // 자식 프로세스가 종료될 때까지 대기
@@ -173,13 +171,13 @@ static void lobby_menu(const char *user, const char *github) {
                     printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, received_data);
                     printf("=========================================\n");
                     
-                    save_high_score(sel, user, received_data);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
+                    save_high_score(sel, user, received_data); // 자동으로 4번 게임 최고점수로 저장됨!
                 } 
             }
             pause_enter();
         }
         else if(sel == 9){
-            show_leaderboard();// leader board를 보여주는 함수(score.h에 포함)
+            show_leaderboard();
             pause_enter();
         }
         else{
