@@ -31,8 +31,21 @@ InhaSystemProgramingPBL/
 └── bin/                    # 빌드 산출물 (git 추적 제외)
 │   └── lobby               # 컴파일된 실행파일
 │
-└── games/                  # [추가] 독립 실행형 미니게임 바이너리 저장소
-    └── game1               # 컴파일된 1번 미니게임 실행파일
+└── games/                  # 독립 실행형 미니게임 바이너리 저장소
+│   └── game1               # 1번 미니게임 RPG
+│   ├── game2               # 2번 다마고치 게임
+│   └── game3               # 3번 미니게임 테트리스
+│
+├── scripts/
+│   ├── ...
+│   ├── play_sound_tetris.sh # [추가] 테트리스 효과음 비동기 재생 제어 셸 스크립트
+│   └── sys_monitor.sh      # [추가] OS 호스트 커널 CPU 사용량 실시간 파싱 스크립트
+│
+└── sound/                  # [추가] 하드웨어 오디오 출력을 위한 WAV 리소스 저장소
+    ├── game3_lock.wav      # 블록 고정 효과음
+    ├── game3_clear.wav     # 라인 클리어 효과음
+    ├── game3_perfectclear.wav # 퍼펙트 클리어 업적 효과음
+    └── game3_gameover.wav  # 게임 오버 효과음
 ```
 
 ## 디렉토리 역할
@@ -44,6 +57,7 @@ InhaSystemProgramingPBL/
 | `data/`    | 사용자 데이터 (계정 등). 로컬 전용         |
 | `games/`	 | 독립 프로세스로 구동될 게임 바이너리 모음    |
 | `bin/`     | gcc 컴파일 산출물. `make clean` 시 삭제됨  |
+| `sound/`   | 게임에서 사용할 오디오 서브시스템 리소스 저장소  |
 
 ## 프로그램 흐름도 (Flow Chart)
 
@@ -69,16 +83,31 @@ flowchart TD
 
     Menu -->|0 종료| End([프로그램 종료])
 
-    %% ---- 게임 실행 ----
-    Lobby -->|1 또는 2| Fork[["fork() + pipe()<br/>자식 프로세스 생성"]]
+    %% ---- 게임 실행 공통 ----
+    Lobby -->|1, 2, 3 선택| Fork[["fork() + pipe()<br/>자식 프로세스 생성"]]
     Fork --> Exec["execl(games/gameN, ...)<br/>argv[1]=ID, argv[2]=github"]
-    Exec --> G2["game2 : GitHub Tamagotchi"]
 
+    %% ---- Game 2 분기 ----
+    Exec --> G2["game2 : GitHub Tamagotchi"]
     G2 --> Stats["github_stats.sh (popen)<br/>마지막 push 일수 · PushEvent 개수"]
     Stats --> Face["표정 렌더링 (제자리 갱신)<br/>r / q 입력 대기"]
     Face -->|r 새로고침| Stats
-    Face -->|q 종료| ExitScore["exit(score)  (점수=종료코드)"]
-    ExitScore --> Wait["부모: wait() + WEXITSTATUS<br/>자식 종료코드=점수 회수"]
+    Face -->|q 종료| ExitScore["exit(score)"]
+
+    %% ---- Game 3 분기 (테트리스 시스템 연동) ----
+    Exec --> G3["game3 : High-Performance Tetris"]
+    G3 --> SysMon["sys_monitor.sh (popen)<br/>호스트 커널 CPU 사용량 실시간 수집"]
+    SysMon --> SpeedMod["CPU 부하 연동형 타이머 변조<br/>drop_interval 실시간 가속"]
+    SpeedMod --> GameLoop{"인게임 루프<br/>키 입력 / 타이머 하강"}
+    
+    GameLoop -->|블록 고정 / 라인 제거 / 올클리어| SndScript["play_sound_tetris.sh (system)<br/>aplay 백그라운드 & 비동기 효과음 재생"]
+    SndScript --> GameLoop
+    
+    GameLoop -->|q 입력 / Game Over| ExitScore3["exit(score)"]
+
+    %% ---- 자식 종료 및 결산 공통 ----
+    ExitScore --> Wait["부모: wait(&status) + WEXITSTATUS<br/>자식 종료코드=점수 회수"]
+    ExitScore3 --> Wait
     Wait --> SaveScore[("scores.txt<br/>최고점수 비교·갱신")]
     SaveScore --> Lobby
 
@@ -89,7 +118,7 @@ flowchart TD
 
     %% ---- 외부 스크립트 노드 강조 ----
     classDef sh fill:#e8e8e8,stroke:#888,color:#000;
-    class GHChk,Stats sh;
+    class GHChk,Stats,SysMon,SndScript sh;
 ```
 
 ## 사용 라이브러리
@@ -100,6 +129,10 @@ C 표준 라이브러리만 사용:
 - `<stdlib.h>` — `system()`, `strtoul`, `atoi`
 - `<string.h>` — 문자열 처리
 - `<time.h>`   — 시스템 시간 연산 및 포맷팅 (time, localtime, strftime)
+- `<unistd.h>` — POSIX OS API 인터페이스. 파일 디스크립터 제어 및 프로세스 이미지 대체 (`read`, `close`, `execl`, `STDIN_FILENO`)
+- `<sys/select.h>` — I/O 멀티플렉싱 커널 시스템 콜. 마이크로초 단위의 비동기 키 입력 감지 타이머 타임아웃 처리 (`select`)
+- `<sys/wait.h>` — 자식 프로세스 생명 주기 관리 및 커널 시그널 추적 인터페이스 (`wait`)
+- `<termios.h>` — 터미널 I/O 특성 변경 인터페이스. 버퍼 없는 로우 모드(Raw Mode) 진입 및 키 에코 차단 (`tcgetattr`, `tcsetattr`)
 
 비밀번호 에코 차단은 `system("stty -echo")` 호출로 처리 (POSIX 헤더 미사용).
 
@@ -221,6 +254,24 @@ yechan:13795222493806861027
 =======================================================
 ```
 
+## 미니게임 3: 시스템 연동형 하드코어 테트리스 (game3)
+
+3번 미니게임은 테트리스 가이드라인 물리 엔진을 구축하고, 리눅스 커널 자원 인터페이스 및 파일 시스템 환경을 프로세스 타이머 제어 루프와 동기화한 **시스템 연동형 하드코어 테트리스**입니다.
+
+### 1. OS 호스트 CPU 자원 연동형 타이머 변조 (OS Resource Monitoring)
+- **구현 원리:** POSIX 표준 익스텐션 파이프라인인 `popen()` 인터페이스를 통해 `scripts/sys_monitor.sh`를 실시간 동기식으로 호출합니다.
+- **커널 데이터 파싱:** 셸 스크립트가 리눅스 커널의 `/proc` 정보에 기반한 `top` 명령어 결과에서 호스트의 실시간 CPU 사용량(%)만 유기적으로 필터링(`grep`, `awk`, `cut`)하여 정수로 뱉어내면 C 엔진이 이를 수집합니다.
+- **실시간 가속 기믹:** CPU 점유율이 1% 상승할 때마다 블록의 중력 하강 주기 변수인 `drop_interval` 마이크로초를 3,500㎲씩 단축(가속)시킵니다. 시스템 부하가 클수록 속도가 폭주하는 실시간 피드백 루프를 적용했습니다.
+- **자원 최적화(Throttling):** 매 프레임 파이프라인을 호출할 때 발생하는 I/O 멀티플렉싱 오버헤드를 제어하기 위해, 테트리스의 상태 이벤트 단계인 'Spawn Phase(새 블록 생성 시점)'에 맞추어 연산 주기를 조율함으로써 컨텍스트 스위칭 비용을 최소화했습니다.
+
+### 2. 가상 파일 시스템(VFS) 및 하드웨어 오디오 비동기 제어
+- **재생 메커니즘:** 인게임 이벤트(블록 고정, 라인 제거, 퍼펙트 클리어, 게임오버) 트리거 시 `system()` 시스템 콜을 호출하여 `scripts/play_sound_tetris.sh`로 전송합니다.
+- **비동기 멀티태스킹:** 리눅스 환경에서 사운드 재생 유틸리티가 음원을 출력하는 동안 C 언어 메인 루프가 블로킹(화면 멈춤)되는 병목 현상을 방지하기 위해, 셸 스크립트 단에서 **백그라운드 비동기 연산자(`&`)**를 명시하여 오디오 자원을 완전 독립 구동(Non-blocking Audio)시켰습니다.
+
+### 3. 수퍼 로테이션 시스템(SRS) 및 정밀 매트릭스 예외 제어
+- **회전축 분리 설계:** 4x4 행렬 격자를 사용하는 I 블록(작대기), 회전 연산 자체가 무시되는 O 블록(네모), 그리고 3x3 중심축 격자 안에서 제자리 정형 회전을 수행하는 표준 미노들(T, S, Z, L, J)의 회전 반경 알고리즘을 분리 설계하여 그래픽 뒤틀림을 원천 방지했습니다.
+- **DT포 월 킥 구현:** 정석 가이드라인의 5단계 오프셋 매트릭스(`wall_kick_data`) 좌표계를 리눅스 터미널 가상 화면 좌표계(아래로 갈수록 Y축 증가)와 수학적으로 동기화하여, 최고난도 기술인 **DT포(DT Cannon) T-스핀 트리플(T-Spin Triple) 월킥** 유격 보정을 완벽하게 가동 성공시켰습니다.
+- **퍼펙트 클리어 판정:** 라인 제거 직후 보드판 전체 세그먼트의 청정 여부를 전수 스캔하는 `is_perfect_clear()` 알고리즘을 장착, 올클리어 성공 시 보너스 점수(+500점) 가산 및 전용 특수 효과음 파이프라인이 정상 트리거되도록 밸런싱했습니다.
 
 # System Programming PBL
 
@@ -255,8 +306,21 @@ InhaSystemProgramingPBL/
 ├── bin/                    # Build artifacts (excluded from git tracking)
 │   └── lobby               # Compiled executable
 │
-└── games/                  # [Additional] Standalone mini-game binary repository
-    └── game1               # Compiled executable for mini-game #1
+├── games/                  # Standalone mini-game binary repository
+│   ├── game1               # Executable for mini-game #1
+│   ├── game2               # Executable for mini-game #2 (GitHub Tamagotchi)
+│   └── game3               # Executable for mini-game #3 (Hardcore System Tetris)
+│
+├── scripts/                # Build & execution shell scripts
+│   ├── ...
+│   ├── play_sound_tetris.sh # Shell script for asynchronous tetris audio playback control
+│   └── sys_monitor.sh      # Shell script for parsing host kernel CPU usage in real-time
+│
+└── sound/                  # WAV resource repository for hardware audio output
+    ├── game3_lock.wav      # Block locking sound
+    ├── game3_clear.wav     # Line clear sound
+    ├── game3_perfectclear.wav # Perfect clear achievement sound
+    └── game3_gameover.wav  # Game over sound
 ```
 
 ## Directory Roles
@@ -268,6 +332,8 @@ InhaSystemProgramingPBL/
 | `data/`    | User data storage (accounts, etc.). Local-only |
 | `games/`   | Collection of game binaries executed as independent processes |
 | `bin/`     | gcc build artifacts. Removed by `make clean` |
+| `sound/`     | Audio subsystem resource directory |
+
 
 ## Libraries Used
 
@@ -277,6 +343,10 @@ Only the C standard library is used:
 - `<stdlib.h>` — `system()`, `strtoul`, `atoi`
 - `<string.h>` — String processing
 - `<time.h>`   — System time operations and formatting (`time`, `localtime`, `strftime`)
+- `<unistd.h>` — POSIX OS API interface. File descriptor manipulation and process image replacement (`read`, `close`, `execl`, `STDIN_FILENO`)
+- `<sys/select.h>` — I/O multiplexing system call. Handles microsecond-level asynchronous keyboard input timeouts (`select`)
+- `<sys/wait.h>` — Child process lifecycle management and kernel signal tracing interface (`wait`)
+- `<termios.h>` — Terminal I/O configuration interface. Enables unbuffered input (Raw Mode) and echo suppression (`tcgetattr`, `tcsetattr`)
 
 Password echo suppression is implemented using `system("stty -echo")` without POSIX-specific headers.
 
@@ -445,3 +515,21 @@ When the user requests ranking information from the lobby menu, the program uses
   #1  | yechan         |   80         | 2026-05-24 15:02:45
 =======================================================
 ```
+
+## Mini-Game 3: OS Resource-Linked Hardcore Tetris (game3)
+
+The third mini-game is a high-performance Tetris game built on a precise implementation of the Tetris Guideline physics engine. It serves as a system-programming-intensive framework that synchronizes Linux kernel resource interfaces and the virtual file system with the process timer control loop.
+
+### 1. Host OS CPU Resource-Linked Timer Modulation (OS Resource Monitoring)
+- **Implementation Mechanism:** Establishes a real-time synchronous pipeline by calling `scripts/sys_monitor.sh` through the POSIX standard extension `popen()` interface.
+- **Kernel Data Parsing:** The shell script monitors and filters (`grep`, `awk`, `cut`) the real-time host CPU usage percentage from the `top` command utilities based on the Linux kernel's `/proc` file system, returning it as a clean integer to the C engine.
+- **Real-Time Acceleration:** For every 1% increase in host CPU utilization, the block's gravity drop timer variable (`drop_interval`) is shortened (accelerated) by 3,500 microseconds. This demonstrates a real-time feedback loop where the gameplay speed dynamically intensifies under high system loads.
+- **Resource Optimization (Throttling):** To prevent system overhead and I/O multiplexing latency caused by polling the kernel on every frame, the execution frequency is throttled to synchronize strictly with the in-game 'Spawn Phase' (the moment a new block is generated), minimizing unnecessary context-switching costs.
+
+### 2. Virtual File System (VFS) & Asynchronous Hardware Audio Control
+- **Playback Architecture:** When key in-game events occur (block locking, line clearing, perfect clearing, or game over), a signal is dispatched via the `system()` call to execute `scripts/play_sound_tetris.sh`.
+- **Asynchronous Multitasking:** To prevent the C standard execution loop from blocking (causing screen lag) while the Linux audio player utility processes sound output, the shell script employs the **background asynchronous operator (`&`)**. This achieves fully independent, non-blocking audio thread execution.
+
+### 3. Super Rotation System (SRS) & Precise Matrix Exception Handling
+- **Decoupled Rotation Axes:** Tailors distinct rotation algorithms for the 4x4 matrix-based I-block (Long bar), the rotation-exempt O-block (Square), and the standard 3x3 center-axis tetrominoes (T, S, Z, L, J), completely preventing graphical fragmentation.
+- **DT Cannon Wall Kicks:** Mathematical synchronization is established between the 5-step SRS offset matrix (`wall_kick_data`) and the Linux terminal virtual display coordinate system (where the Y-axis increases downwards). This enables flawless wall kick execution for the advanced **DT Cannon Opening: T-Spin Double to T-Spin Triple** sequence.
