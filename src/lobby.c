@@ -5,6 +5,7 @@
 
 #include <unistd.h>// fork(), execl() 함수 원형, pid_t 자료형 정의가 들어있는 헤더
 #include <sys/wait.h>// wait(), WIFEXITED, WEXITSTATUS 매크로가 들어있는 헤더
+#include <signal.h>// signal(), SIGINT (ISO C 표준 헤더) - 게임 실행 중 로비의 Ctrl+C 보호용
 #include "score.h"
 
 static void read_line(char *buf, size_t n) {
@@ -85,6 +86,7 @@ static void lobby_menu(const char *user, const char *github) {
         printf(" 1) Game1\n");
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
+        printf(" 4) Game4 (Management Game : 자원 경영 시뮬레이션, 종료는 Ctrl+C)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");
         printf("선택 > ");
@@ -98,7 +100,7 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
             return;
         }
-        else if(sel >= 1 && sel <= 3){
+        else if(sel >= 1 && sel <= 4){
             printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
@@ -127,9 +129,12 @@ static void lobby_menu(const char *user, const char *github) {
 
                 char game_path[32];
                 char game_name[16];
-                
+
                 // 실행 파일 경로 규칙 지정 (예: games/game1)
                 sprintf(game_path, "games/game%d", sel);
+                // game4 는 bash 스크립트(.sh 확장자 관례 유지).
+                // #!/bin/bash 셔뱅을 커널이 해석하므로 바이너리와 동일하게 execl 로 실행된다.
+                if (sel == 4) strcat(game_path, ".sh");
                 sprintf(game_name, "game%d", sel);
 
                 // execl을 사용하여 격리된 공간에서 새 게임 프로그램으로 넘어감
@@ -137,9 +142,10 @@ static void lobby_menu(const char *user, const char *github) {
                 // 미니게임 측에서 파이프에 점수를 쓸 수 있도록 argv[3] 위치에 파이프 번호를 넘겨준다.
                 execl(game_path, game_name, user, github, pipe_fd_str, (char *)NULL);
 
-                // execl이 실패했을 경우 
-                int error_signal = 1;
-                // 부모에게 실행 실패 신호(1)를 파이프로 전송
+                // execl이 실패했을 경우
+                // 점수는 항상 0 이상이므로 -1 은 "실행 실패" 전용 신호로 안전하다.
+                int error_signal = -1;
+                // 부모에게 실행 실패 신호(-1)를 파이프로 전송
                 write(exec_pipe[1], &error_signal, sizeof(error_signal));
                 close(exec_pipe[1]);
                 
@@ -150,31 +156,61 @@ static void lobby_menu(const char *user, const char *github) {
                 // =========== 부모 프로세스 영역 ===========
                 close(exec_pipe[1]); // 쓰기 전용 포트는 닫음
 
-                // 자식이 파이프에 직접 write한 4바이트 int형 데이터를 정밀 수집
-                // 자식이 execl에 실패하여 파이프에 값을 썼는지 확인 + 자식이 넘겨주는 최종 점수 수집
+                // 게임이 도는 동안 Ctrl+C(SIGINT)는 자식(게임)만 받도록 로비는 잠시 무시.
+                // Ctrl+C 로만 끝나는 게임(game4)에서 로비까지 같이 죽는 것을 방지한다.
+                void (*old_sigint)(int) = signal(SIGINT, SIG_IGN);
+
+                /* ── 점수 회수 프로토콜 ──
+                 * 자식이 파이프에 쓴 4바이트 int 를 읽는다.
+                 *   received_data == -1 : execl 실패 신호 (게임 바이너리 없음)
+                 *   received_data >=  0 : 게임이 직접 보낸 최종 점수 (game3, 255점 초과 가능)
+                 *   nbytes == 0         : 파이프 미사용 게임 (game1/game2)
+                 *                         → 종료코드(WEXITSTATUS, 0~255)에서 점수 회수
+                 */
                 int received_data = 0;
                 int nbytes = read(exec_pipe[0], &received_data, sizeof(received_data));
                 close(exec_pipe[0]);
-                
-                
+
                 int status;
                 // 자식 프로세스가 종료될 때까지 대기
-                wait(&status); 
+                wait(&status);
 
-                // 자식이 파이프에 에러 신호(-1)를 남겼거나, 아무것도 쓰지 못하고 강제 소멸한 경우
-                if (nbytes <= 0 || received_data == -1) {
+                signal(SIGINT, old_sigint); // 로비의 Ctrl+C 동작 원복
+
+                // 자식이 execl 실패 신호(-1)를 남긴 경우: 게임 바이너리 누락
+                if (nbytes > 0 && received_data == -1) {
                     printf("\n[X] 오류: 게임 프로그램 파일이 존재하지 않거나 실행할 수 없습니다.\n");
                     printf("[INFO] scripts/build.sh 를 실행하여 게임 바이너리를 생성하세요.\n");
                 }
-                // 자식이 정상적으로 execl을 거쳐 게임을 플레이하고 종료된 경우
                 else {
-                    printf("\n=========================================\n");
-                    printf("[OK] 게임이 정상 종료되었습니다.\n");
-                    printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, received_data);
-                    printf("=========================================\n");
-                    
-                    save_high_score(sel, user, received_data);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
-                } 
+                    int game_score = -1;
+
+                    if (nbytes > 0) {
+                        // 파이프 점수 방식 (game3): 8bit 제한 없이 큰 점수 그대로 수신
+                        game_score = received_data;
+                    }
+                    else if (sel != 4 && WIFEXITED(status)) {
+                        // 종료코드 점수 방식 (game1/game2): exit(score) 를 WEXITSTATUS 로 회수
+                        // game4(bash)는 Ctrl+C 종료 시 bash 가 종료코드 130 으로 끝나
+                        // 가짜 점수가 기록될 수 있으므로 종료코드 회수 대상에서 제외한다.
+                        game_score = WEXITSTATUS(status);
+                    }
+
+                    if (game_score >= 0) {
+                        printf("\n=========================================\n");
+                        printf("[OK] 게임이 정상 종료되었습니다.\n");
+                        printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, game_score);
+                        printf("=========================================\n");
+
+                        save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
+                    } else if (sel == 4) {
+                        // game4 는 점수 없이 Ctrl+C 로 끝나는 게임: 정상 흐름으로 안내
+                        printf("\n[INFO] 게임이 종료되었습니다. (game4 는 점수 기록이 없습니다)\n");
+                    } else {
+                        // 파이프에도 안 쓰고 정상 종료도 아님: 시그널 등으로 강제 소멸
+                        printf("\n[X] 경고: 게임 프로세스가 비정상적으로 종료되었습니다.\n");
+                    }
+                }
             }
             pause_enter();
         }

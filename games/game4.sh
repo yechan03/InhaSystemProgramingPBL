@@ -4,14 +4,17 @@
 
 #GAME STARTS HERE
 
-source "$(dirname "$0")/change_turn.sh"
-source "$(dirname "$0")/input.sh"
-source "$(dirname "$0")/display.sh"
-source "$(dirname "$0")/resources.sh"
-source "$(dirname "$0")/utils.sh"
-source "$(dirname "$0")/contracts_management.sh"
-source "$(dirname "$0")/market.sh"
-source "$(dirname "$0")/events.sh"
+# 게임 모듈들은 management_game/ 디렉토리에 위치 (이 스크립트만 로비 규칙에 맞춰 games/game4.sh)
+MODULE_DIR="$(dirname "$0")/management_game"
+
+source "$MODULE_DIR/change_turn.sh"
+source "$MODULE_DIR/input.sh"
+source "$MODULE_DIR/display.sh"
+source "$MODULE_DIR/resources.sh"
+source "$MODULE_DIR/utils.sh"
+source "$MODULE_DIR/contracts_management.sh"
+source "$MODULE_DIR/market.sh"
+source "$MODULE_DIR/events.sh"
 
 clear
 
