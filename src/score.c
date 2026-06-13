@@ -1,187 +1,186 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <time.h>      // 최고점수 기록을 달성한 시간을 측정하기 위해 추가
 #include <unistd.h>
 #include <termios.h>
 #include "score.h"
+#include "account.h"   // 플레이어 개인 데이터를 받아오기 위해 추가
 
-// 만약 score.h에 정의되어 있지 않을 경우를 대비한 안전장치 정의
-#ifndef SCORE_FILE
-#define SCORE_FILE "data/scores.txt"
-#endif
-
-#ifndef MAX_ID_LEN
-#define MAX_ID_LEN 64
-#endif
-
-//  1. 게임별 점수 데이터를 임시로 담아두기 위한 구조체 정의
+// 랭킹 정렬을 위해 내림차순 정렬할 임시 구조체 배열 정의
 typedef struct {
-    int g_num;
-    char u_id[MAX_ID_LEN];
-    int s_val;
-    char t_val[30];
-} ScoreRecord;
+    char username[64];
+    int score;
+    char timestamp[32];
+} rank_entry_t;
 
-//  2. 순위표 화면에서 실시간 방향키 입력을 감지하기 위한 내부 함수
-static int read_leaderboard_key(void) {
-    struct termios oldt, newt;
-    int ch;
-    
-    // 터미널 설정을 백업하고 실시간 입력 모드(버퍼링/에코 제거)로 변경
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    
-    ch = getchar();
-    
-    // 리눅스 화살표 키 특수 이스케이프 시퀀스(\033[...) 파싱
-    if (ch == 27) { 
-        ch = getchar();
-        if (ch == '[') {
-            ch = getchar();
-            // 원상복구 후 방향키 코드 리턴 ('C' = 우측화살표, 'D' = 좌측화살표)
-            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-            return ch; 
-        }
-    }
-    
-    // 원상복구 후 엔터 등 일반 키 리턴
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return ch;
+// C 표준 라이브러리 qsort 연동용 점수 내림차순 비교 함수
+static int compare_scores(const void *a, const void *b) {
+    rank_entry_t *entryA = (rank_entry_t *)a;
+    rank_entry_t *entryB = (rank_entry_t *)b;
+    return entryB->score - entryA->score; // 높은 점수가 위로 정렬
 }
 
-// 최고 점수를 파일에 저장하는 기존 유지 함수
+// 현재 시스템 시간을 "YYYY-MM-DD HH:MM:SS" 형식의 문자열로 구하는 함수
+void get_current_time_str(char *buf, size_t max_size) {
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(buf, max_size, "%Y-%m-%d %H:%M:%S", tm_info);
+}
+
+// 점수가 획득되었을 때 기존 최고 점수와 비교하여 갱신하거나 새로 저장하는 함수
 void save_high_score(int game_num, const char *user, int new_score) {
+    FILE *fp = fopen(SCORE_FILE, "r");
     char lines[100][256];
     int line_count = 0;
-    int found = 0;
+    int updated = 0;
+    char time_str[30];
     
-    FILE *fp = fopen(SCORE_FILE, "r");
+    get_current_time_str(time_str, sizeof(time_str));
+
+    // 기존 파일이 존재하면 읽어서 탐색 및 비교
     if (fp) {
         while (fgets(lines[line_count], sizeof(lines[0]), fp)) {
             int g_num, s_val;
             char u_id[MAX_ID_LEN];
             char t_val[30];
             
+            // 데이터 파싱 (게임번호:유저ID:점수:시간)
             if (sscanf(lines[line_count], "%d:%[^:]:%d:%[^\n]", &g_num, u_id, &s_val, t_val) == 4) {
-                // 내 아이디와 게임 번호가 일치하는 기존 기록 발견 시
+                // 해당 유저의 해당 게임 기록을 찾은 경우
                 if (g_num == game_num && strcmp(u_id, user) == 0) {
-                    found = 1;
                     if (new_score > s_val) {
-                        time_t t = time(NULL);
-                        struct tm *tm_info = localtime(&t);
-                        char time_str[30];
-                        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
-                        
-                        // 최고 기록 갱신
+                        // 최고 점수 갱신
                         sprintf(lines[line_count], "%d:%s:%d:%s\n", game_num, user, new_score, time_str);
-                        printf("\n[Record] ★ 축하합니다! 신규 최고 점수가 등록되었습니다! ★\n");
+                        printf("[Record] 축하합니다! 최고 점수가 갱신되었습니다!\n");
                     } else {
-                        printf("\n[Record] 기존 최고 점수(%d점)보다 낮아 기록을 갱신하지 않았습니다.\n", s_val);
+                        printf("[Record] 기존 최고 점수(%d점)를 넘지 못했습니다.\n", s_val);
                     }
+                    updated = 1;
                 }
             }
             line_count++;
         }
         fclose(fp);
     }
-    
-    // 기존에 내 아이디로 등록된 게임 기록이 없었다면 새로 한 줄 추가
-    if (!found) {
-        time_t t = time(NULL);
-        struct tm *tm_info = localtime(&t);
-        char time_str[30];
-        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
-        
+
+    // 만약 해당 유저의 기존 기록이 아예 없었다면 새로운 라인으로 추가
+    if (!updated) {
         sprintf(lines[line_count], "%d:%s:%d:%s\n", game_num, user, new_score, time_str);
         line_count++;
-        printf("\n[Record] ★ 생애 첫 게임 플레이! 신규 점수가 등록되었습니다! ★\n");
+        printf("[Record] 신규 최고 점수가 등록되었습니다!\n");
     }
-    
-    // 파일에 다시 덮어쓰기 저장
+
+    // 최종 데이터를 파일에 다시 안전하게 덮어쓰기 저장
     fp = fopen(SCORE_FILE, "w");
-    if (fp) {
-        for (int i = 0; i < line_count; i++) {
-            fputs(lines[i], fp);
-        }
-        fclose(fp);
-    } else {
-        perror("[X] 점수 파일 오픈 실패");
+    if (!fp) {
+        perror("[X] 점수 파일 저장 실패");
+        return;
     }
+    for (int i = 0; i < line_count; i++) {
+        fputs(lines[i], fp);
+    }
+    fclose(fp);
 }
 
-//  3. [수정 완료] 게임별로 대시보드를 나누어 방향키로 연동하는 순위표 함수
-void show_leaderboard(void) {
-    ScoreRecord records[1000];
-    int total_records = 0;
-
-    // 파일에서 전체 데이터 딱 한 번 긁어와 배열에 캐싱
-    FILE *fp = fopen(SCORE_FILE, "r");
-    if (fp) {
-        char line[256];
-        while (fgets(line, sizeof(line), fp) && total_records < 1000) {
-            int g_num, s_val;
-            char u_id[MAX_ID_LEN];
-            char t_val[30];
-            
-            if (sscanf(line, "%d:%[^:]:%d:%[^\n]", &g_num, u_id, &s_val, t_val) == 4) {
-                records[total_records].g_num = g_num;
-                snprintf(records[total_records].u_id, MAX_ID_LEN, "%s", u_id);
-                records[total_records].s_val = s_val;
-                snprintf(records[total_records].t_val, 30, "%s", t_val);
-                total_records++;
-            }
+// 실시간 방향키 입력을 받기 위한 내부 함수 (안전하게 제어 모드 해제 보장)
+static int read_leaderboard_key(void) {
+    struct termios oldt, newt;
+    int ch;
+    
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    
+    ch = getchar();
+    if (ch == 27) { // 이스케이프 시퀀스 파싱 (방향키 체크)
+        ch = getchar();
+        if (ch == '[') {
+            ch = getchar();
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            return ch; // 'C' -> 오른쪽 화살표, 'D' -> 왼쪽 화살표
         }
-        fclose(fp);
     }
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return ch; // '\n' (엔터) 등 일반 키 리턴
+}
 
-    int current_game = 1; // 로비 진입 시 기본 1번 게임 페이지 고정
+/* ───────────────── [인하아케이드 전용 스코어보드 시스템] ───────────────── */
+// 방향키로 게임별 대시보드를 넘겨보며 qsort 내림차순 정렬을 출력하는 함수
+void show_leaderboard(void) {
+    int target_game = 1; // 기본적으로 Game 1 페이지부터 노출 시작
 
+    // 메인 인터랙션 무한 루프 개시
     while (1) {
-        printf("\033[2J\033[H"); // 화면 깜빡임 최소화 전체 클리어
+        // 1. 파일 열기 시도 (루프 돌 때마다 최신 파일 상태 반영)
+        FILE *fp = fopen(SCORE_FILE, "r");
         
-        printf("\n=========================================================\n");
-        printf("               INHA ARCADE LEADERBOARD                 \n");
-        printf("=========================================================\n");
-        printf("               현재 점수판: [ GAME %d ] \n", current_game);
-        printf("---------------------------------------------------------\n");
-        printf(" GAME |   PLAYER ID    |   HIGH SCORE  |      DATE TIME    \n");
-        printf("---------------------------------------------------------\n");
+        rank_entry_t rank_list[200]; // 최대 200명 레코드 가상 메모리 매핑
+        int entry_count = 0;
 
-        int has_record = 0;
+        if (fp) {
+            int g_num, s_val;
+            char u_name[64], t_stamp[32];
+
+            // 파일 전체 오프셋을 스캔하며 현재 페이지인 "target_game" 레코드만 메모리에 파싱 스트리밍
+            while (fscanf(fp, "%d:%[^:]:%d:%[^\n]\n", &g_num, u_name, &s_val, t_stamp) == 4) {
+                if (g_num == target_game) {
+                    strncpy(rank_list[entry_count].username, u_name, sizeof(rank_list[entry_count].username));
+                    rank_list[entry_count].username[sizeof(rank_list[entry_count].username) - 1] = '\0';
+
+                    rank_list[entry_count].score = s_val;
+
+                    strncpy(rank_list[entry_count].timestamp, t_stamp, sizeof(rank_list[entry_count].timestamp));
+                    rank_list[entry_count].timestamp[sizeof(rank_list[entry_count].timestamp) - 1] = '\0';
+
+                    entry_count++;
+                    if (entry_count >= 200) break; // 오버플로우 방지 락
+                }
+            }
+            fclose(fp);
+        }
+
+        // 2. 수집된 개별 게임 데이터를 피벗 기반 퀵정렬로 스코어링 내림차순 랭크 셋업
+        if (entry_count > 0) {
+            qsort(rank_list, entry_count, sizeof(rank_entry_t), compare_scores);
+        }
+
+        // 3. 지우님이 다듬은 깔끔한 UI 기반 렌더링 파트
+        printf("\033[2J\033[H"); // 화면 청소 후 좌상단 복귀
+        printf("============================================================\n");
+        printf("           ★ INHA ARCADE: GAME #%d LEADERBOARD ★       \n", target_game);
+        printf("============================================================\n");
+        printf("  RANK  |    PLAYER ID    |  HIGH SCORE  |      DATE TIME    \n");
+        printf("------------------------------------------------------------\n");
         
-        // 캐싱된 배열 전체를 탐색하며 오직 현재 'current_game' 번호 데이터만 필터링하여 매핑
-        for (int i = 0; i < total_records; i++) {
-            if (records[i].g_num == current_game) {
-                printf("  #%d  | %-14s |   %-10d | %s\n", 
-                       records[i].g_num, records[i].u_id, records[i].s_val, records[i].t_val);
-                has_record = 1;
+        if (!fp || entry_count == 0) {
+            printf("\n%s        아직 등록된 Game #%d의 최고점수 기록이 없습니다.%s\n\n", "\033[31m", target_game, "\033[0m");
+        } else {
+            for (int i = 0; i < entry_count; i++) {
+                printf("   #%02d  | %-15s |  %11d | %s\n", 
+                       i + 1, 
+                       rank_list[i].username, 
+                       rank_list[i].score, 
+                       rank_list[i].timestamp);
             }
         }
-
-        if (!has_record) {
-            printf("        아직 등록된 Game %d의 순위 기록이 없습니다.      \n", current_game);
-        }
-
-        printf("==========================================================\n");
-        printf(" [◀] 이전 게임  |  [▶] 다음 게임  |  [Enter] 로비로 복귀\n");
-        printf("==========================================================\n");
+        printf("============================================================\n");
+        printf(" [◀] 이전 게임   |   [▶] 다음 게임   |   [Enter] 로비로 복귀\n");
+        printf("============================================================\n");
         fflush(stdout);
 
-        // 키 상호작용 감지
+        // 4. 키 제어 분기 처리
         int key = read_leaderboard_key();
-        
-        if (key == 'C') { // 오른쪽 화살표 키 입력 시 다음 게임으로 이동
-            current_game++;
-            if (current_game > 5) current_game = 1; // 5번 게임을 초과하면 1번으로 무한 순환
+        if (key == 'C') { // 오른쪽 방향키
+            target_game++;
+            if (target_game > 5) target_game = 1; // 5번 넘어가면 1번으로 순환
         } 
-        else if (key == 'D') { // 왼쪽 화살표 키 입력 시 이전 게임으로 이동
-            current_game--;
-            if (current_game < 1) current_game = 5; // 1번 게임 미만으로 떨어지면 5번으로 무한 순환
+        else if (key == 'D') { // 왼쪽 방향키
+            target_game--;
+            if (target_game < 1) target_game = 5; // 1번 미만으로 떨어지면 5번으로 순환
         } 
-        else if (key == '\n' || key == '\r') { // 엔터 키 감지 시 루프를 부수고 완전히 탈출
+        else if (key == '\n' || key == '\r') { // 엔터 키 입력 시 메인 로비 메뉴로 완전 탈출
             break;
         }
     }
