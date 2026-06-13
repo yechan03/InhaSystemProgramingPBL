@@ -2,7 +2,11 @@
  * game5 : Knight's Tour (기사의 여행)
  *
  * 체스마의 행마법을 이용해 중복 없이 지정된 크기(5x5, 6x6, 7x7)의 판을 모두 채우는 게임.
- * - 난이도가 높을수록 최고 보너스 점수 상향 및 초당 점수 감점량 감소 규칙 적용
+ *
+ * [업데이트 로그]
+ * - 기본 점수: 클리어 여부와 상관없이 무조건 [차지한 칸 수 * 칸당 점수] 보장
+ * - 추가 점수: 모든 칸을 다 채워 클리어 성공 시 [소요시간 비례 추가 보너스 점수] 가산
+ * - 점수 제한 해제: 기존 상한선인 255점 제한 규칙을 삭제하여 300~400점대 고득점 반영 가능
  *
  * 사용 라이브러리 : C 표준 라이브러리 및 POSIX 타임 인터페이스
  * 실행 인자       : argv[1] = 로비에서 넘어온 사용자 ID
@@ -210,7 +214,7 @@ int main(int argc, char **argv) {
         if (!read_action(&act)) break;
 
         if (act == 'q' || act == 'Q') {
-            status = 0;
+            status = 0; // 포기
             break;
         }
 
@@ -236,26 +240,40 @@ int main(int argc, char **argv) {
 
     // 3. 점수 계산 페이즈 
     int score = 0;
-    if (status == 1) {
-        int base_score = 100;
-        int penalty_per_second = 0;
+    int points_per_cell = 0;   
+    int max_time_bonus = 0;    
+    int penalty_per_second = 0;
 
-        if (N == 5) {
-            base_score = 200;
-            penalty_per_second = 3;
-        } else if (N == 6) {
-            base_score = 250;
-            penalty_per_second = 2;
-        } else if (N == 7) {
-            base_score = 400;
-            penalty_per_second = 1;
-        }
-
-        score = base_score - (elapsed_time * penalty_per_second);
-        if (score < 10) score = 10;
-    } else {
-        score = 0; 
+    if (N == 5) {
+        points_per_cell = 4;    // 25칸 * 4점 = 다 채우면 기본 최대 100점
+        max_time_bonus = 100;   
+        penalty_per_second = 2; 
+    } else if (N == 6) {
+        points_per_cell = 5;    // 36칸 * 5점 = 다 채우면 기본 최대 180점
+        max_time_bonus = 150;   
+        penalty_per_second = 1; 
+    } else if (N == 7) {
+        points_per_cell = 6;    // 49칸 * 6점 = 다 채우면 기본 최대 294점
+        max_time_bonus = 300;   
+        penalty_per_second = 1; 
     }
+
+    // 1) 기본 점수: 밟은 누적 칸 수 * 칸당 점수
+    score = move_count * points_per_cell;
+
+    // 2) 추가 보너스: 올 클리어 시 시간 보너스 합산
+    if (status == 1) {
+        int time_bonus = max_time_bonus - (elapsed_time * penalty_per_second);
+        if (time_bonus < 20) time_bonus = 20; // 최소 보너스 보장
+        
+        score += time_bonus;
+        printf("\n[Clear] ★ 축하합니다! 모든 칸을 성공적으로 완공하여 클리어 타임 보너스 %d점이 추가되었습니다! ★\n", time_bonus);
+    } else {
+        printf("\n[Game Over] 진행 도중 막혔거나 포기했습니다. (최종 획득 칸수: %d칸)\n", move_count);
+    }
+
+    // 최소값 안전장치만 유지 (점수가 음수로 떨어지는 것 방지)
+    if (score < 0) score = 0;
 
     int exit_score = score;
 
