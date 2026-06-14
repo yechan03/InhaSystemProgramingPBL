@@ -82,8 +82,7 @@ static void lobby_menu(const char *user, const char *github) {
     while (1) {
         clear_screen();
         printf("\n----- [ 로비 ] 사용자: %s (GitHub: %s) -----\n", user, github);
-        printf(" (미니게임 기능은 팀 협의 후 추가 예정)\n");
-        printf(" 1) Game1\n");
+        printf(" 1) Game1 (VI-RPG : VI RPG 던전)\n");
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
         printf(" 4) Game4 (Management Game : 자원 경영 시뮬레이션, 종료는 Ctrl+C)\n");

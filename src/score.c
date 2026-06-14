@@ -113,7 +113,7 @@ void show_leaderboard(void) {
 
     // 메인 인터랙션 무한 루프 개시
     while (1) {
-        // 1. 파일 열기 시도 (루프 돌 때마다 최신 파일 상태 반영)
+        // 파일 열기 시도 (루프 돌 때마다 최신 파일 상태 반영)
         FILE *fp = fopen(SCORE_FILE, "r");
         
         rank_entry_t rank_list[200]; // 최대 200명 레코드 가상 메모리 매핑
@@ -141,12 +141,12 @@ void show_leaderboard(void) {
             fclose(fp);
         }
 
-        // 2. 수집된 개별 게임 데이터를 피벗 기반 퀵정렬로 스코어링 내림차순 랭크 셋업
+        // 수집된 개별 게임 데이터를 피벗 기반 퀵정렬로 스코어링 내림차순 랭크 셋업
         if (entry_count > 0) {
             qsort(rank_list, entry_count, sizeof(rank_entry_t), compare_scores);
         }
 
-        // 3. 지우님이 다듬은 깔끔한 UI 기반 렌더링 파트
+        // 렌더링 파트
         printf("\033[2J\033[H"); // 화면 청소 후 좌상단 복귀
         printf("============================================================\n");
         printf("           ★ INHA ARCADE: GAME #%d LEADERBOARD ★       \n", target_game);
@@ -170,7 +170,7 @@ void show_leaderboard(void) {
         printf("============================================================\n");
         fflush(stdout);
 
-        // 4. 키 제어 분기 처리
+        // 키 제어 분기 처리
         int key = read_leaderboard_key();
         if (key == 'C') { // 오른쪽 방향키
             target_game++;

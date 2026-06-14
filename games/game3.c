@@ -299,8 +299,10 @@ static void rotate_matrix(int source[4][4], int dest[4][4], int dir) {
     // 먼저 전체를 빈칸으로 초기화
     memset(dest, 0, sizeof(int) * 4 * 4);
     
-    // Case 1: 조작 중인 블록이 4x4 격자를 쓰는 I 블록(작대기)인 경우
-    if (current_piece.type == MINO_I) {
+    // Case 1: 조작 중인 블록이 T를 제외한 블록인 경우
+    if (current_piece.type == MINO_I || current_piece.type == MINO_L || 
+        current_piece.type == MINO_J || current_piece.type == MINO_S || 
+        current_piece.type == MINO_Z) {
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
                 if (dir == 1) { // 시계 방향 회전
@@ -311,7 +313,7 @@ static void rotate_matrix(int source[4][4], int dest[4][4], int dir) {
             }
         }
     } 
-    // Case 2: T, S, Z, L, J 등 표준 3x3 중심축 미노인 경우
+    // Case 2: T 미노인 경우
     else {
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
@@ -379,6 +381,35 @@ static void execute_srs_rotation(int dir) {
 
         // 이 오프셋만큼 밀어냈을 때 충돌이 없는 안전한 곳인지 검사
         if (!check_collision(target_x, target_y, next_matrix)) {
+            /* ──────────────── [ 고도화: 스핀 판정 엔진 ] ──────────────── */
+            // 조건 1: 제자리 회전(test == 0)이 아니라 킥 변위(test > 0)를 받아 회전 성공함
+            // 조건 2: 회전 직후 상/하/좌/우 중 3곳 이상이 벽이나 고정 블록으로 꽉 막혀있음
+            if (test > 0) {
+                int blocked_count = 0;
+                if (check_collision(target_x + 1, target_y, next_matrix)) blocked_count++; // 우측 막힘
+                if (check_collision(target_x - 1, target_y, next_matrix)) blocked_count++; // 좌측 막힘
+                if (check_collision(target_x, target_y + 1, next_matrix)) blocked_count++; // 바닥 막힘
+                if (check_collision(target_x, target_y - 1, next_matrix)) blocked_count++; // 천장 막힘
+
+                // 3면 이상 꽉 끼인 상태라면 미노 타입별 고유 스핀 이펙트 가동!
+                if (blocked_count >= 3) {
+                    printf("\033[1;33m\n[SPIN] ");
+                    switch (current_piece.type) {
+                        case MINO_L: printf("L-SPIN!"); break;
+                        case MINO_J: printf("J-SPIN!"); break;
+                        case MINO_S: printf("S-SPIN!"); break;
+                        case MINO_Z: printf("Z-SPIN!"); break;
+                        case MINO_T: printf("T-SPIN!"); break;
+                        default:     printf("MINO-SPIN!"); break;
+                    }
+                    printf("\033[0m\n");
+                    fflush(stdout);
+                    
+                    // 스핀 성공 보너스 스코어 가산 (50점 추가)
+                    score += 50; 
+                }
+            }
+            /* ────────────────────────────────────────────────────────── */
             // 안전한 빈 자리를 찾았으므로 최종 데이터 반영 후 탈출
             memcpy(current_piece.matrix, next_matrix, sizeof(next_matrix));
             current_piece.x = target_x;
@@ -387,23 +418,6 @@ static void execute_srs_rotation(int dir) {
             lock_delay_count++; // 회전 성공 시 카운터 증가
             return; 
         }
-    }
-
-    /* ──────────────── [강제 Floor Kick] ──────────────── */
-    // 5단계 월킥을 다 실패했더라도, 위로 1칸 올린 자리가 안전하다면 회전 성공 처리
-    int floor_kick_x = current_piece.x;
-    int floor_kick_y = current_piece.y - 1; // 위로 1칸 올림
-
-    if (!check_collision(floor_kick_x, floor_kick_y, next_matrix)) {
-        memcpy(current_piece.matrix, next_matrix, sizeof(next_matrix));
-        current_piece.x = floor_kick_x;
-        current_piece.y = floor_kick_y; // 바닥을 딛고 위로 튀어오름
-        current_piece.rotation = next_rot;
-        
-        if (check_collision(current_piece.x, current_piece.y + 1, next_matrix)) {
-        lock_delay_count++; // 바닥에 닿은 채로 회전 성공할 때마다 카운트 증가
-        }
-        return;
     }
     // 테스트를 모두 돌았는데도 빈 자리가 없다면 회전은 최종 '불가' 처리되어 회전 입력 무시
 }
@@ -589,7 +603,7 @@ static void render(void) {
 
     printf("=========================================" EL "\n");
     printf("  %s%s★ SCORE: %d%s"                     EL "\n", BOLD, ESC "[33m", score, RST);
-    printf("  이동: 화살표 키 회전: w/z/x  종료: q" EL "\n");
+    printf("  이동: 화살표 키 회전: z/x 홀드: c  종료: q" EL "\n");
     printf("=========================================" EL "\n");
     fflush(stdout);
 
