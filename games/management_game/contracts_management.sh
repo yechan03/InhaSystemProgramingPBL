@@ -37,7 +37,7 @@ contract_resources () {
             return
             ;;
     esac   
-    read -p "According to today's market, the price of $productToSell is $itemPrice, so $(( itemPrice * quantity )) each turn. Shall we proceed? (y/n)" proceed
+    read -p "According to today's market, the price of $productToSell is $itemPrice, so $(( itemPrice * quantity )) each turn. Shall we proceed? (y/n) " proceed
     if [[ $proceed == "y" ]]; then
         contracts_list+=("${buyOrSell}|${productToSell}|${quantity}|${itemPrice}|${turns}")
     fi

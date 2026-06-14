@@ -23,6 +23,7 @@ display_menus() {
             echo "3. new contract"
             echo "4. list of contracts"
             echo "5. next turn"
+            echo "6. quit game"
             ;;
         "BUY")
             echo "1. coal mine ($COAL_MINE_COST money)"

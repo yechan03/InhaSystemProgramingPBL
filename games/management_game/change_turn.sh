@@ -27,7 +27,7 @@ sell_contract () {
     local itemPrice=$3
     case $product in
         "coal")
-            if [ $coal -ge $quantity ]; then
+            if [ "$coal" -ge "$quantity" ]; then
                 (( coal -= quantity ))
             else
                 echo "Not enough $product to sell."
@@ -35,7 +35,7 @@ sell_contract () {
             fi
             ;;
         "iron ore")
-            if [ $iron_ore -ge $quantity ]; then
+            if [ "$iron_ore" -ge "$quantity" ]; then
                 (( iron_ore -= quantity ))
             else
                 echo "Not enough $product to sell."
@@ -43,7 +43,7 @@ sell_contract () {
             fi
             ;;
         "iron")
-            if [ $iron -ge $quantity ]; then
+            if [ "$iron" -ge "$quantity" ]; then
                 (( iron -= quantity ))
             else
                 echo "Not enough $product to sell."
@@ -51,7 +51,7 @@ sell_contract () {
             fi
             ;;
         "steel")
-            if [ $steel -ge $quantity ]; then
+            if [ "$steel" -ge "$quantity" ]; then
                 (( steel -= quantity ))
             else
                 echo "Not enough $product to sell."
@@ -72,9 +72,9 @@ contracts_execution() {
         local buyOrSell product quantity itemPrice turns
         IFS='|' read -r buyOrSell product quantity itemPrice turns <<< "$contracts"
         if [ "$buyOrSell" == "buy" ]; then
-            buy_contract $product $quantity $itemPrice
+            buy_contract "$product" "$quantity" "$itemPrice"
         else
-            if ! sell_contract $product $quantity $itemPrice; then
+            if ! sell_contract "$product" "$quantity" "$itemPrice"; then
                 echo "Failed to execute contract: not enough resources to sell."
                 continue
             fi

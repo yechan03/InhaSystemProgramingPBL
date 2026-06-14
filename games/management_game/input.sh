@@ -26,6 +26,9 @@ input_management() {
                 5)
                     GAMESTATE="PASSING_TURN"
                     ;;
+                6)
+                    GAMESTATE="QUIT"
+                    ;;
                 *)
                     echo "Invalid choice"
                     ;;

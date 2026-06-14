@@ -1,6 +1,10 @@
 #!/bin/bash
 
 
+USERNAME="$1"
+GITHUB="$2"
+PIPE_FD="$3"
+
 
 #GAME STARTS HERE
 
@@ -73,7 +77,21 @@ while true; do
     clear
     display_game
     input_management
+    if [ "$GAMESTATE" == "QUIT" ]; then
+        break
+    fi
     if [ "$GAMESTATE" == "PASSING_TURN" ]; then
         passing_turn
     fi
 done
+
+#Final score calculation for lobby
+FINAL_SCORE=$((money + (coal * 2) + (iron_ore * 3) + (iron * 5) + (steel * 10)))
+
+EXIT_SCORE=$(( FINAL_SCORE / 100 ))
+
+if [ "$EXIT_SCORE" -gt 255 ]; then
+    EXIT_SCORE=255
+fi
+
+exit $EXIT_SCORE

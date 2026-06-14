@@ -201,8 +201,8 @@ static void lobby_menu(const char *user, const char *github) {
                         printf("=========================================\n");
 
                         save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
-                    } else if (sel == 4) {
-                        // game4 는 점수 없이 Ctrl+C 로 끝나는 게임: 정상 흐름으로 안내
+                    } else if (WIFEXITED(status)) {
+                        game_score = WEXITSTATUS(status);
                         printf("\n[INFO] 게임이 종료되었습니다. (game4 는 점수 기록이 없습니다)\n");
                     } else {
                         // 파이프에도 안 쓰고 정상 종료도 아님: 시그널 등으로 강제 소멸
