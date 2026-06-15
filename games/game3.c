@@ -299,9 +299,8 @@ static void rotate_matrix(int source[4][4], int dest[4][4], int dir) {
     // 먼저 전체를 빈칸으로 초기화
     memset(dest, 0, sizeof(int) * 4 * 4);
     
-    // Case 1: 조작 중인 블록이 T를 제외한 블록인 경우
-    if (current_piece.type == MINO_I || current_piece.type == MINO_L || 
-        current_piece.type == MINO_J || current_piece.type == MINO_S || 
+    // Case 1: 조작 중인 블록이 T, J, L을 제외한 블록인 경우
+    if (current_piece.type == MINO_I || current_piece.type == MINO_S || 
         current_piece.type == MINO_Z) {
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
@@ -313,7 +312,7 @@ static void rotate_matrix(int source[4][4], int dest[4][4], int dir) {
             }
         }
     } 
-    // Case 2: T 미노인 경우
+    // Case 2: T, J, L 블록인 경우
     else {
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
