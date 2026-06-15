@@ -40,7 +40,7 @@ typedef struct {
 /* ──────────────── 사운드 제어 매크로 ──────────────── */
 static void trigger_sound(const char *type) {
     char cmd[64];
-    snprintf(cmd, sizeof(cmd), "sh scripts/play_sound_tetris.sh %s", type);
+    snprintf(cmd, sizeof(cmd), "sh scripts/play_sound_tetris.sh %s &", type);
     system(cmd);
 }
 
