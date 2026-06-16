@@ -85,7 +85,7 @@ static void lobby_menu(const char *user, const char *github) {
         printf(" 1) Game1 (VI-RPG : VI RPG 던전)\n");
         printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
         printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
-        printf(" 4) Game4 (Management Game : 자원 경영 시뮬레이션, 종료는 Ctrl+C)\n");
+        printf(" 4) Game4 (Factory-ism : 자원 경영 시뮬레이션)\n");
         printf(" 5) Game5 (Knight's Tour : 기사의 여행)\n");
         printf(" 9) High Score Leader Board (순위표)\n");
         printf(" 0) 로그아웃\n");

@@ -1,5 +1,5 @@
 display_game( ) {
-    echo "This is the management game"
+    echo "Factory-ism: The Industrial Revolution Management Game"
     display_info
     display_menus
 }
