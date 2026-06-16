@@ -118,16 +118,16 @@ flowchart TD
     GameLoop -->|q 입력 / Game Over| PipeScore["argv[3] 파이프에 score write<br/>(8bit 제한 없는 대형 점수)"]
 
     %% ---- Game 4 분기 (자원 경영 시뮬레이션) ----
-    Exec --> G4["game4.sh : Management Game (bash)<br/>management_game/ 모듈 source"]
-    G4 -->|Ctrl+C 종료| G4End["점수 기록 없음<br/>(로비는 SIGINT 무시로 생존)"]
-    G4End --> Lobby
+    Exec --> G4["game4.sh : Factory-ism (bash)<br/>management_game/ 모듈 source"]
+    G4 -->|Ctrl+C (SIGINT trap) / 메뉴 종료| PipeScore4["report_score() : 자산 환산 점수 계산<br/>(money+coal·2+ore·3+iron·5+steel·10)/100<br/>255 clamp 후 argv[3] 파이프에 4바이트 정수 write"]
+    PipeScore4 --> Wait
 
     %% ---- Game 5 분기 (기사의 여행) ----
     Exec --> G5["game5 : Knight's Tour<br/>기사의 여행 (실시간 키 입력)"]
     G5 -->|게임 종료| PipeScore5["argv[3] 파이프에 score write"]
 
     %% ---- 자식 종료 및 결산 공통 ----
-    ExitScore1 --> Wait["부모 점수 회수 프로토콜:<br/>① 파이프 값 -1 → 실행 실패<br/>② 파이프 값 ≥0 → 그대로 점수 (game3·5)<br/>③ 파이프 비어있음 → wait() + WEXITSTATUS (game1·2)"]
+    ExitScore1 --> Wait["부모 점수 회수 프로토콜:<br/>① 파이프 값 -1 → 실행 실패<br/>② 파이프 값 ≥0 → 그대로 점수 (game3·4·5)<br/>③ 파이프 비어있음 → wait() + WEXITSTATUS (game1·2)"]
     ExitScore --> Wait
     PipeScore --> Wait
     PipeScore5 --> Wait
@@ -270,11 +270,11 @@ yechan:13795222493806861027:yechan03
 | 파이프 수신 값 | 해석 | 처리 |
 | --- | --- | --- |
 | `-1` | `execl()` 실패 (바이너리 누락) | 빌드 안내 출력 |
-| `0 이상` | 게임이 직접 보낸 점수 (game3·game5) | 8bit 제한 없이 그대로 기록 |
+| `0 이상` | 게임이 직접 보낸 점수 (game3·game4·game5) | 8bit 제한 없이 그대로 기록 |
 | (비어있음) + 정상 종료 | 종료코드 점수 방식 (game1·game2 의 `exit(score)`) | `WEXITSTATUS` 로 회수 (0~255) |
 | (비어있음) + 비정상 종료 | 시그널 등 강제 소멸 | 비정상 종료 경고 |
 
-game4(경영 시뮬레이션)는 점수 개념이 없어 회수 대상에서 제외되며, Ctrl+C 로 종료해도 로비가 함께 죽지 않도록 게임 실행 중에는 로비가 `signal(SIGINT, SIG_IGN)` 으로 인터럽트를 잠시 무시합니다.
+game4(경영 시뮬레이션)는 메뉴 내 종료 명령이 없어 `Ctrl+C` 로 끝나는데, 스크립트가 `trap report_score SIGINT` 로 SIGINT 를 가로채 **종료 직전 자산을 점수로 환산해 파이프(argv[3])로 보냅니다.** 따라서 game4 도 game3·game5 와 같은 파이프 점수 회수 경로(②)로 순위표에 기록됩니다. 한편 게임 실행 중에는 로비가 `signal(SIGINT, SIG_IGN)` 으로 인터럽트를 잠시 무시하므로, 플레이어가 Ctrl+C 를 눌러 game4 를 끝내도 로비는 죽지 않고 메뉴로 안전하게 복귀합니다.
 
 ### 최고 점수 및 순위표(Leaderboard) 출력 포맷
 로비 메뉴에서 랭킹 조회를 요청할 경우, C 표준 printf 서식 지정자를 활용하여 터미널 환경에 가독성 높은 격자 대시보드를 출력합니다.
@@ -348,13 +348,20 @@ score = (마지막 push 7일 이내 ? 100 : 0)        # 살아있음 보너스
 - **DT포 월 킥 구현:** 정석 가이드라인의 5단계 오프셋 매트릭스(`wall_kick_data`) 좌표계를 리눅스 터미널 가상 화면 좌표계(아래로 갈수록 Y축 증가)와 수학적으로 동기화하여, 최고난도 기술인 **DT포(DT Cannon) T-스핀 트리플(T-Spin Triple) 월킥** 유격 보정을 완벽하게 가동 성공시켰습니다.
 - **퍼펙트 클리어 판정:** 라인 제거 직후 보드판 전체 세그먼트의 청정 여부를 전수 스캔하는 `is_perfect_clear()` 알고리즘을 장착, 올클리어 성공 시 보너스 점수(+500점) 가산 및 전용 특수 효과음 파이프라인이 정상 트리거되도록 밸런싱했습니다.
 
-## 미니게임 4: 자원 경영 시뮬레이션 (game4)
+## 미니게임 4: 자원 경영 시뮬레이션 Factory-ism (game4)
 
-4번 미니게임은 **순수 bash 로 구현한 턴제 자원 경영 시뮬레이션**입니다. 석탄·철광석·철·강철 자원을 사고팔고, 광산·공장을 건설하며, 계약과 시장 가격 변동·랜덤 이벤트 속에서 자금을 불려 나갑니다.
+4번 미니게임은 **순수 bash 로 구현한 턴제 자원 경영 시뮬레이션 "Factory-ism"** 입니다. 석탄·철광석·철·강철 자원을 사고팔고, 광산·공장을 건설하며, 계약과 시장 가격 변동·랜덤 이벤트 속에서 자금을 불려 나갑니다.
 
 - **모듈 구조:** 진입점은 `games/game4.sh` 하나이며, 실제 로직은 `games/management_game/` 디렉토리의 모듈 8개(`change_turn.sh`, `input.sh`, `display.sh`, `resources.sh`, `utils.sh`, `contracts_management.sh`, `market.sh`, `events.sh`)를 `source` 로 조립합니다. 모듈 경로는 `$(dirname "$0")` 기준이라 어느 위치에서 실행해도 안전합니다.
-- **로비 연동:** 다른 게임과 동일하게 `fork()` + `execl()` 로 실행됩니다. bash 스크립트지만 커널의 셔뱅(`#!/bin/bash`) 해석 덕분에 바이너리와 같은 경로로 구동됩니다.
-- **종료 방식:** 메뉴 내 종료 명령이 없어 `Ctrl+C` 로 종료합니다. 게임 실행 동안 로비는 `SIGINT` 를 무시하므로 Ctrl+C 를 눌러도 로비 메뉴로 안전하게 복귀합니다. 점수 기록은 없습니다 (추후 argv[3] 파이프에 점수를 쓰면 자동으로 순위표에 연동됩니다).
+- **로비 연동:** 다른 게임과 동일하게 `fork()` + `execl()` 로 실행됩니다. bash 스크립트지만 커널의 셔뱅(`#!/bin/bash`) 해석 덕분에 바이너리와 같은 경로로 구동됩니다. 로그인 사용자 ID·GitHub username·점수 전달용 파이프 fd 를 각각 `$1`·`$2`·`$3`(`PIPE_FD`) 로 받습니다.
+- **종료 및 점수 회수:** 메뉴 내 종료 명령이 없어 `Ctrl+C` 로 종료합니다. 스크립트는 `trap report_score SIGINT` 로 SIGINT 를 가로채고, 메뉴에서 정상 종료(`QUIT`)할 때도 같은 `report_score()` 를 호출하므로 **어느 경로로 끝나든 점수가 집계됩니다.** 게임 실행 동안 로비는 `SIGINT` 를 무시하므로 Ctrl+C 를 눌러도 로비 메뉴로 안전하게 복귀합니다.
+- **점수 공식 (`report_score`):** 보유 자산을 가중 합산한 뒤 100 으로 나눠 점수를 만듭니다.
+  ```
+  FINAL_SCORE = money + coal*2 + iron_ore*3 + iron*5 + steel*10
+  EXIT_SCORE  = min( FINAL_SCORE / 100 , 255 )    # 정수 나눗셈 후 255 clamp
+  ```
+  가공도가 높은 자원(강철 ×10, 철 ×5)일수록 점수 가중치가 커서, 단순히 현금을 쌓기보다 생산 사슬을 끝까지 돌려 고부가 자원을 비축하는 운영이 고득점으로 이어집니다.
+- **파이프 직접 write (8bit 무손실):** 계산된 점수는 `write_int()` 가 **리틀엔디언 4바이트 정수**로 분해해 `printf '%b' ... >&"$PIPE_FD"` 로 파이프에 직접 씁니다. 종료코드(0~255 1바이트) 대신 파이프를 쓰므로, 로비의 하이브리드 회수 프로토콜에서 game3·game5 와 동일한 **② 파이프 점수 경로**로 회수되어 순위표에 기록됩니다.
 
 # System Programming PBL
 
@@ -578,11 +585,11 @@ After `wait(&status)` returns, the parent recovers the score in the following or
 | Pipe value received | Meaning | Handling |
 | --- | --- | --- |
 | `-1` | `execl()` failure (missing binary) | Print build instructions |
-| `>= 0` | Score sent directly by the game (game3/game5) | Recorded as-is, no 8-bit limit |
+| `>= 0` | Score sent directly by the game (game3/game4/game5) | Recorded as-is, no 8-bit limit |
 | (empty) + normal exit | Exit-code scoring (`exit(score)` in game1/game2) | Recovered via `WEXITSTATUS` (0–255) |
 | (empty) + abnormal exit | Killed by a signal | Abnormal-termination warning |
 
-game4 (management simulation) has no scoring and is excluded from retrieval. While a game is running, the lobby temporarily ignores `SIGINT` (`signal(SIGINT, SIG_IGN)`) so that quitting game4 with Ctrl+C does not kill the lobby itself.
+game4 (management simulation) has no in-menu quit command, so it ends on `Ctrl+C`; the script installs `trap report_score SIGINT`, converting its assets into a score and writing it to the pipe (`argv[3]`) just before exit. game4 is therefore retrieved through the same pipe-score path (②) as game3/game5. Meanwhile, while a game is running, the lobby temporarily ignores `SIGINT` (`signal(SIGINT, SIG_IGN)`) so that quitting game4 with Ctrl+C does not kill the lobby itself.
 
 ### High Score & Leaderboard Output Format
 
