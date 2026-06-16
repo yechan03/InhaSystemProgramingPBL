@@ -30,7 +30,7 @@ sell_contract () {
             if [ "$coal" -ge "$quantity" ]; then
                 (( coal -= quantity ))
             else
-                echo "Not enough $product to sell."
+                echo -e "${RED}Not enough $product to sell.${NC}"
                 return 1
             fi
             ;;
@@ -38,7 +38,7 @@ sell_contract () {
             if [ "$iron_ore" -ge "$quantity" ]; then
                 (( iron_ore -= quantity ))
             else
-                echo "Not enough $product to sell."
+                echo -e "${RED}Not enough $product to sell.${NC}"
                 return 1
             fi
             ;;
@@ -46,7 +46,7 @@ sell_contract () {
             if [ "$iron" -ge "$quantity" ]; then
                 (( iron -= quantity ))
             else
-                echo "Not enough $product to sell."
+                echo -e "${RED}Not enough $product to sell.${NC}"
                 return 1
             fi
             ;;
@@ -54,7 +54,7 @@ sell_contract () {
             if [ "$steel" -ge "$quantity" ]; then
                 (( steel -= quantity ))
             else
-                echo "Not enough $product to sell."
+                echo -e "${RED}Not enough $product to sell.${NC}"
                 return 1
             fi
             ;;
@@ -75,7 +75,7 @@ contracts_execution() {
             buy_contract "$product" "$quantity" "$itemPrice"
         else
             if ! sell_contract "$product" "$quantity" "$itemPrice"; then
-                echo "Failed to execute contract: not enough resources to sell."
+                echo -e "${RED}Failed to execute contract: not enough resources to sell.${NC}"
                 continue
             fi
         fi
@@ -106,7 +106,7 @@ resource_production() {
     ironConsumed=0
 
     if [ $how_many_iron_plants_can_be_fueled -lt $ironPlants ]; then
-        echo "Not enough coal or iron ores to fuel all iron plants. Only $how_many_iron_plants_can_be_fueled can be fueled."
+        echo -e "${RED}Not enough coal or iron ores to fuel all iron plants. Only $how_many_iron_plants_can_be_fueled can be fueled.${NC}"
         newIron=$(( how_many_iron_plants_can_be_fueled * IRON_PLANT_PRODUCTION ))
         (( coalConsumed += how_many_iron_plants_can_be_fueled * IRON_PLANT_COAL_COST ))
         (( ironOresConsumed += how_many_iron_plants_can_be_fueled * IRON_PLANT_IRON_ORE_COST ))
@@ -122,7 +122,7 @@ resource_production() {
     newSteel=0
 
     if [ $how_many_steel_plants_can_be_fueled -lt $steelPlants ]; then
-        echo "Not enough coal or iron to fuel all steel plants. Only $how_many_steel_plants_can_be_fueled can be fueled."
+        echo -e "${RED}Not enough coal or iron to fuel all steel plants. Only $how_many_steel_plants_can_be_fueled can be fueled.${NC}"
         newSteel=$(( how_many_steel_plants_can_be_fueled * STEEL_PLANT_PRODUCTION ))
         (( coalConsumed += how_many_steel_plants_can_be_fueled * STEEL_PLANT_COAL_COST ))
         (( ironConsumed += how_many_steel_plants_can_be_fueled * STEEL_PLANT_IRON_COST ))

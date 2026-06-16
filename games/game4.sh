@@ -72,6 +72,31 @@ STEEL_PLANT_IRON_COST=10
 
 contracts_list=()
 
+write_int() {
+    local value=$1
+    local b0=$(( value & 0xFF ))
+    local b1=$(( (value >> 8) & 0xFF ))
+    local b2=$(( (value >> 16) & 0xFF ))
+    local b3=$(( (value >> 24) & 0xFF ))
+    printf '%b' "\\x$(printf '%02x' "$b0")\\x$(printf '%02x' "$b1")\\x$(printf '%02x' "$b2")\\x$(printf '%02x' "$b3")" >&"$PIPE_FD"
+}
+
+report_score() {
+    FINAL_SCORE=$((money + (coal * 2) + (iron_ore * 3) + (iron * 5) + (steel * 10)))
+    EXIT_SCORE=$(( FINAL_SCORE / 100 ))
+    if [ "$EXIT_SCORE" -gt 255 ]; then
+        EXIT_SCORE=255
+    fi
+
+    if [ -n "$PIPE_FD" ]; then
+        write_int "$EXIT_SCORE"
+    fi
+
+    exit 0
+}
+
+trap report_score SIGINT
+
 #MAIN
 while true; do
     clear
@@ -85,13 +110,4 @@ while true; do
     fi
 done
 
-#Final score calculation for lobby
-FINAL_SCORE=$((money + (coal * 2) + (iron_ore * 3) + (iron * 5) + (steel * 10)))
-
-EXIT_SCORE=$(( FINAL_SCORE / 100 ))
-
-if [ "$EXIT_SCORE" -gt 255 ]; then
-    EXIT_SCORE=255
-fi
-
-exit $EXIT_SCORE
+report_score

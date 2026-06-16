@@ -43,8 +43,3 @@ contract_resources () {
     fi
     quick_message "Contract added: ${buyOrSell} ${quantity} ${productToSell} for $(( itemPrice * quantity )) each turn for $turns turns."
 }
-
-contract_employee () {
-    echo "Do you want to hire or fire an employee?"
-    echo "How many?"
-}
