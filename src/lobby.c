@@ -51,57 +51,85 @@ static void print_main_menu(void) {
 
 static int do_register(void) {
     char id[MAX_ID_LEN], pw[MAX_PW_LEN], github[MAX_GH_LEN];
-    printf("새 아이디 (로그인용)   : "); read_line(id, sizeof(id));
-    printf("GitHub username         : "); read_line(github, sizeof(github));
-    printf("새 비밀번호             : "); read_password(pw, sizeof(pw));
+
+    clear_screen();
+    printf("\n=========================================\n");
+    printf("            회원가입 (Sign Up)\n");
+    printf("=========================================\n");
+    printf(" GitHub username 은 실제 존재하는 계정이어야 하며,\n");
+    printf(" 영문·숫자·하이픈(-) 으로 1~39자 입니다.\n");
+    printf("-----------------------------------------\n");
+    printf("  아이디          : "); read_line(id, sizeof(id));
+    printf("  GitHub username : "); read_line(github, sizeof(github));
+    printf("  비밀번호        : "); read_password(pw, sizeof(pw));
+    printf("-----------------------------------------\n");
 
     int r = account_register(id, pw, github);
-    if (r == 0)   { printf("[OK] 가입이 완료되었습니다. (GitHub: %s)\n", github); return 0;  }
-    if (r == -1)  { printf("[X] 이미 존재하는 아이디입니다.\n");        return -1; }
-    if (r == -3)  { printf("[X] 입력 형식 오류 (id/pw/github 빈 값 또는 GitHub username 규칙 위반).\n"); return -1; }
-    if (r == -4)  { printf("[X] GitHub 에 존재하지 않는 사용자입니다. (네트워크 또는 curl 미설치 시도 동일)\n"); return -1; }
-    printf("[X] 계정 파일 저장 실패.\n");
+    if (r == 0)   { printf("  [OK] 가입 완료! 환영합니다. (GitHub: %s)\n", github); printf("=========================================\n"); return 0;  }
+    if (r == -1)  { printf("  [X] 이미 존재하는 아이디입니다.\n"); }
+    else if (r == -3)  { printf("  [X] 입력 형식 오류: 아이디/비밀번호/GitHub username 을\n      비우지 말고 username 규칙을 지켜 주세요.\n"); }
+    else if (r == -4)  { printf("  [X] GitHub 에 존재하지 않는 사용자입니다.\n      (네트워크 미연결·curl 미설치 시에도 동일하게 표시됩니다.)\n"); }
+    else          { printf("  [X] 계정 파일 저장에 실패했습니다.\n"); }
+    printf("=========================================\n");
     return -1;
 }
 
 static int do_login(char *out_user, size_t un, char *out_github, size_t gn) {
     char id[MAX_ID_LEN], pw[MAX_PW_LEN];
-    printf("아이디 : ");   read_line(id, sizeof(id));
-    printf("비밀번호 : "); read_password(pw, sizeof(pw));
+
+    clear_screen();
+    printf("\n=========================================\n");
+    printf("             로그인 (Login)\n");
+    printf("=========================================\n");
+    printf("  아이디    : ");   read_line(id, sizeof(id));
+    printf("  비밀번호  : "); read_password(pw, sizeof(pw));
+    printf("-----------------------------------------\n");
 
     if (account_login(id, pw, out_github, gn) == 0) {
         snprintf(out_user, un, "%s", id);
-        printf("[OK] 환영합니다, %s 님! (GitHub: %s)\n", out_user, out_github);
+        printf("  [OK] 환영합니다, %s 님! (GitHub: %s)\n", out_user, out_github);
+        printf("=========================================\n");
         return 0;
     }
-    printf("[X] 로그인 실패: 아이디 또는 비밀번호가 올바르지 않습니다.\n");
+    printf("  [X] 로그인 실패: 아이디 또는 비밀번호가\n      올바르지 않습니다.\n");
+    printf("=========================================\n");
     return -1;
 }
 
 static void lobby_menu(const char *user, const char *github) {
     while (1) {
         clear_screen();
-        printf("\n----- [ 로비 ] 사용자: %s (GitHub: %s) -----\n", user, github);
-        printf(" 1) Game1 (VI-RPG : VI RPG 던전)\n");
-        printf(" 2) Game2 (GitHub Tamagotchi - 다마고치 키우기)\n");
-        printf(" 3) Game3 (VI-TETRIS : 실시간 테트리스)\n");
-        printf(" 4) Game4 (Factory-ism : 자원 경영 시뮬레이션)\n");
-        printf(" 5) Game5 (Knight's Tour : 기사의 여행)\n");
-        printf(" 9) High Score Leader Board (순위표)\n");
-        printf(" 0) 로그아웃\n");
-        printf("선택 > ");
+        printf("\n=========================================\n");
+        printf("        INHA ARCADE :  게임 로비\n");
+        printf("=========================================\n");
+        printf("  사용자 : %s\n", user);
+        printf("  GitHub : %s\n", github);
+        printf("-----------------------------------------\n");
+        printf("  [ 미니게임 ]\n");
+        printf("   1) %-17s - VI 던전 탐험 RPG\n",   "VI-RPG");
+        printf("   2) %-17s - 깃허브 다마고치 키우기\n", "GitHub Tamagotchi");
+        printf("   3) %-17s - 실시간 테트리스\n",     "VI-TETRIS");
+        printf("   4) %-17s - 자원 경영 시뮬레이션\n", "Factory-ism");
+        printf("   5) %-17s - 기사의 여행\n",         "Knight's Tour");
+        printf("-----------------------------------------\n");
+        printf("  [ 기타 ]\n");
+        printf("   9) 순위표 (Leaderboard)\n");
+        printf("   0) 로그아웃\n");
+        printf("=========================================\n");
+        printf("  선택 > ");
 
         char buf[16];
         read_line(buf, sizeof(buf));
         int sel = atoi(buf);
 
         if (sel == 0) {
-            printf("[INFO] 로그아웃 되었습니다.\n");
+            printf("\n  [INFO] 로그아웃 되었습니다.\n");
             pause_enter();
             return;
         }
         else if(sel >= 1 && sel <= 5){
-            printf("[System] 게임%d 프로세스를 생성합니다...\n", sel);
+            clear_screen();
+            printf("\n  [System] Game%d 프로세스를 생성합니다...\n", sel);
 
             // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
             int exec_pipe[2];
@@ -177,8 +205,10 @@ static void lobby_menu(const char *user, const char *github) {
 
                 // 자식이 execl 실패 신호(-1)를 남긴 경우: 게임 바이너리 누락
                 if (nbytes > 0 && received_data == -1) {
-                    printf("\n[X] 오류: 게임 프로그램 파일이 존재하지 않거나 실행할 수 없습니다.\n");
-                    printf("[INFO] scripts/build.sh 를 실행하여 게임 바이너리를 생성하세요.\n");
+                    printf("\n=========================================\n");
+                    printf("  [X] 게임 프로그램 파일을 실행할 수 없습니다.\n");
+                    printf("      scripts/build.sh 로 게임 바이너리를 먼저 생성하세요.\n");
+                    printf("=========================================\n");
                 }
                 else {
                     int game_score = -1;
@@ -196,17 +226,20 @@ static void lobby_menu(const char *user, const char *github) {
 
                     if (game_score >= 0) {
                         printf("\n=========================================\n");
-                        printf("[OK] 게임이 정상 종료되었습니다.\n");
-                        printf("[Result] %s 님의 최종 획득 점수: %d 점\n", user, game_score);
+                        printf("  [OK] 게임이 정상 종료되었습니다.\n");
+                        printf("  [Result] %s 님의 최종 점수 : %d 점\n", user, game_score);
                         printf("=========================================\n");
 
                         save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
                     } else if (WIFEXITED(status)) {
-                        game_score = WEXITSTATUS(status);
-                        printf("\n[INFO] 게임이 종료되었습니다. (game4 는 점수 기록이 없습니다)\n");
+                        printf("\n=========================================\n");
+                        printf("  [INFO] 게임이 종료되었습니다.\n");
+                        printf("=========================================\n");
                     } else {
                         // 파이프에도 안 쓰고 정상 종료도 아님: 시그널 등으로 강제 소멸
-                        printf("\n[X] 경고: 게임 프로세스가 비정상적으로 종료되었습니다.\n");
+                        printf("\n=========================================\n");
+                        printf("  [X] 게임 프로세스가 비정상적으로 종료되었습니다.\n");
+                        printf("=========================================\n");
                     }
                 }
             }
@@ -217,7 +250,7 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
         }
         else{
-            printf("[X] 잘못된 선택입니다.\n");
+            printf("\n  [X] 잘못된 선택입니다. 메뉴의 번호를 입력해 주세요.\n");
             pause_enter();
         }
     }
