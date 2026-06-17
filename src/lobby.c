@@ -8,6 +8,29 @@
 #include <signal.h>// signal(), SIGINT (ISO C 표준 헤더) - 게임 실행 중 로비의 Ctrl+C 보호용
 #include "score.h"
 
+/* ──────────────── ANSI 색상 코드 ────────────────
+ * 외부 라이브러리 없이, 표준 출력(printf)으로 내보내는 이스케이프 문자열일 뿐이다.
+ * 터미널이 \033[..m 을 "색상 명령"으로 해석해 글자 색/스타일을 바꾼다. */
+#define C_RST   "\033[0m"    /* 모든 속성 초기화 */
+#define C_BOLD  "\033[1m"    /* 굵게 */
+#define C_DIM   "\033[2m"    /* 흐리게 */
+#define C_R     "\033[31m"   /* 빨강 */
+#define C_G     "\033[32m"   /* 초록 */
+#define C_Y     "\033[33m"   /* 노랑 */
+#define C_B     "\033[34m"   /* 파랑 */
+#define C_M     "\033[35m"   /* 자홍 */
+#define C_C     "\033[36m"   /* 청록 */
+#define C_W     "\033[37m"   /* 흰색 */
+#define C_BR    "\033[91m"   /* 밝은 빨강 */
+#define C_BG    "\033[92m"   /* 밝은 초록 */
+#define C_BY    "\033[93m"   /* 밝은 노랑 */
+#define C_BB    "\033[94m"   /* 밝은 파랑 */
+#define C_BM    "\033[95m"   /* 밝은 자홍 */
+#define C_BC    "\033[96m"   /* 밝은 청록 */
+#define C_GR    "\033[90m"   /* 회색 */
+#define BG_B    "\033[44m"   /* 파란 배경 */
+#define BG_M    "\033[45m"   /* 자홍 배경 */
+
 static void read_line(char *buf, size_t n) {
     if (!fgets(buf, (int)n, stdin)) { buf[0] = '\0'; return; }
     size_t l = strlen(buf);
@@ -33,44 +56,48 @@ static void clear_screen(void) {
 /* 결과 메시지가 다음 화면 지우기로 사라지기 전에 사용자가 읽도록 잠시 멈춘다. */
 static void pause_enter(void) {
     char tmp[16];
-    printf("\n계속하려면 Enter 를 누르세요...");
+    printf("\n  " C_GR "계속하려면 " C_BY "Enter" C_GR " 를 누르세요..." C_RST);
     fflush(stdout);
     read_line(tmp, sizeof(tmp));
 }
 
 static void print_main_menu(void) {
     clear_screen();
-    printf("\n=========================================\n");
-    printf("   Inha SysProg PBL : Mini-Game Lobby\n");
-    printf("=========================================\n");
-    printf(" 1) 회원가입\n");
-    printf(" 2) 로그인\n");
-    printf(" 0) 종료\n");
-    printf("선택 > ");
+    printf("\n");
+    printf("  " C_BC "════════════════════════════════════════════" C_RST "\n");
+    printf("       " C_BY C_BOLD "★  I N H A   A R C A D E  ★" C_RST "\n");
+    printf("        " C_C "Inha SysProg PBL · Mini-Game Lobby" C_RST "\n");
+    printf("  " C_BC "════════════════════════════════════════════" C_RST "\n\n");
+    printf("    " C_BG "1)" C_RST " " C_W C_BOLD "회원가입" C_RST "    " C_GR "Sign Up" C_RST "\n");
+    printf("    " C_BB "2)" C_RST " " C_W C_BOLD "로그인" C_RST "      " C_GR "Login" C_RST "\n");
+    printf("    " C_BR "0)" C_RST " " C_W C_BOLD "종료" C_RST "        " C_GR "Exit" C_RST "\n");
+    printf("  " C_BC "════════════════════════════════════════════" C_RST "\n");
+    printf("\n  " C_BY "▶ 선택 >" C_RST " ");
 }
 
 static int do_register(void) {
     char id[MAX_ID_LEN], pw[MAX_PW_LEN], github[MAX_GH_LEN];
 
     clear_screen();
-    printf("\n=========================================\n");
-    printf("            회원가입 (Sign Up)\n");
-    printf("=========================================\n");
-    printf(" GitHub username 은 실제 존재하는 계정이어야 하며,\n");
-    printf(" 영문·숫자·하이픈(-) 으로 1~39자 입니다.\n");
-    printf("-----------------------------------------\n");
-    printf("  아이디          : "); read_line(id, sizeof(id));
-    printf("  GitHub username : "); read_line(github, sizeof(github));
-    printf("  비밀번호        : "); read_password(pw, sizeof(pw));
-    printf("-----------------------------------------\n");
+    printf("\n");
+    printf("  " C_BG "════════════════════════════════════════════" C_RST "\n");
+    printf("            " C_BG C_BOLD "회원가입 · Sign Up" C_RST "\n");
+    printf("  " C_BG "════════════════════════════════════════════" C_RST "\n");
+    printf("  " C_GR "GitHub username 은 실제 존재하는 계정이어야 하며," C_RST "\n");
+    printf("  " C_GR "영문·숫자·하이픈(-) 으로 1~39자 입니다." C_RST "\n");
+    printf("  " C_C "─────────────────────────────────────────" C_RST "\n");
+    printf("   " C_BC "▸" C_RST " 아이디          : "); read_line(id, sizeof(id));
+    printf("   " C_BC "▸" C_RST " GitHub username : "); read_line(github, sizeof(github));
+    printf("   " C_BC "▸" C_RST " 비밀번호        : "); read_password(pw, sizeof(pw));
+    printf("  " C_C "─────────────────────────────────────────" C_RST "\n");
 
     int r = account_register(id, pw, github);
-    if (r == 0)   { printf("  [OK] 가입 완료! 환영합니다. (GitHub: %s)\n", github); printf("=========================================\n"); return 0;  }
-    if (r == -1)  { printf("  [X] 이미 존재하는 아이디입니다.\n"); }
-    else if (r == -3)  { printf("  [X] 입력 형식 오류: 아이디/비밀번호/GitHub username 을\n      비우지 말고 username 규칙을 지켜 주세요.\n"); }
-    else if (r == -4)  { printf("  [X] GitHub 에 존재하지 않는 사용자입니다.\n      (네트워크 미연결·curl 미설치 시에도 동일하게 표시됩니다.)\n"); }
-    else          { printf("  [X] 계정 파일 저장에 실패했습니다.\n"); }
-    printf("=========================================\n");
+    if (r == 0)   { printf("  " C_BG C_BOLD "[OK]" C_RST " 가입 완료! 환영합니다. " C_GR "(GitHub: %s)" C_RST "\n", github); printf("  " C_BG "═════════════════════════════════════════" C_RST "\n"); return 0;  }
+    if (r == -1)  { printf("  " C_BR "[X]" C_RST " 이미 존재하는 아이디입니다.\n"); }
+    else if (r == -3)  { printf("  " C_BR "[X]" C_RST " 입력 형식 오류: 아이디/비밀번호/GitHub username 을\n      비우지 말고 username 규칙을 지켜 주세요.\n"); }
+    else if (r == -4)  { printf("  " C_BR "[X]" C_RST " GitHub 에 존재하지 않는 사용자입니다.\n      " C_GR "(네트워크 미연결·curl 미설치 시에도 동일하게 표시됩니다.)" C_RST "\n"); }
+    else          { printf("  " C_BR "[X]" C_RST " 계정 파일 저장에 실패했습니다.\n"); }
+    printf("  " C_BR "═════════════════════════════════════════" C_RST "\n");
     return -1;
 }
 
@@ -78,58 +105,60 @@ static int do_login(char *out_user, size_t un, char *out_github, size_t gn) {
     char id[MAX_ID_LEN], pw[MAX_PW_LEN];
 
     clear_screen();
-    printf("\n=========================================\n");
-    printf("             로그인 (Login)\n");
-    printf("=========================================\n");
-    printf("  아이디    : ");   read_line(id, sizeof(id));
-    printf("  비밀번호  : "); read_password(pw, sizeof(pw));
-    printf("-----------------------------------------\n");
+    printf("\n");
+    printf("  " C_BB "════════════════════════════════════════════" C_RST "\n");
+    printf("             " C_BB C_BOLD "로그인 · Login" C_RST "\n");
+    printf("  " C_BB "════════════════════════════════════════════" C_RST "\n");
+    printf("   " C_BC "▸" C_RST " 아이디    : ");   read_line(id, sizeof(id));
+    printf("   " C_BC "▸" C_RST " 비밀번호  : "); read_password(pw, sizeof(pw));
+    printf("  " C_C "─────────────────────────────────────────" C_RST "\n");
 
     if (account_login(id, pw, out_github, gn) == 0) {
         snprintf(out_user, un, "%s", id);
-        printf("  [OK] 환영합니다, %s 님! (GitHub: %s)\n", out_user, out_github);
-        printf("=========================================\n");
+        printf("  " C_BG C_BOLD "[OK]" C_RST " 환영합니다, " C_BY "%s" C_RST " 님! " C_GR "(GitHub: %s)" C_RST "\n", out_user, out_github);
+        printf("  " C_BG "═════════════════════════════════════════" C_RST "\n");
         return 0;
     }
-    printf("  [X] 로그인 실패: 아이디 또는 비밀번호가\n      올바르지 않습니다.\n");
-    printf("=========================================\n");
+    printf("  " C_BR "[X]" C_RST " 로그인 실패: 아이디 또는 비밀번호가\n      올바르지 않습니다.\n");
+    printf("  " C_BR "═════════════════════════════════════════" C_RST "\n");
     return -1;
 }
 
 static void lobby_menu(const char *user, const char *github) {
     while (1) {
         clear_screen();
-        printf("\n=========================================\n");
-        printf("        INHA ARCADE :  게임 로비\n");
-        printf("=========================================\n");
-        printf("  사용자 : %s\n", user);
-        printf("  GitHub : %s\n", github);
-        printf("-----------------------------------------\n");
-        printf("  [ 미니게임 ]\n");
-        printf("   1) %-17s - VI 던전 탐험 RPG\n",   "VI-RPG");
-        printf("   2) %-17s - 깃허브 다마고치 키우기\n", "GitHub Tamagotchi");
-        printf("   3) %-17s - 실시간 테트리스\n",     "VI-TETRIS");
-        printf("   4) %-17s - 자원 경영 시뮬레이션\n", "Factory-ism");
-        printf("   5) %-17s - 기사의 여행\n",         "Knight's Tour");
-        printf("-----------------------------------------\n");
-        printf("  [ 기타 ]\n");
-        printf("   9) 순위표 (Leaderboard)\n");
-        printf("   0) 로그아웃\n");
-        printf("=========================================\n");
-        printf("  선택 > ");
+        printf("\n");
+        printf("  " C_BC "════════════════════════════════════════════" C_RST "\n");
+        printf("       " C_BY C_BOLD "★  I N H A   A R C A D E  ★" C_RST "\n");
+        printf("           " C_BG "게임 로비 · GAME LOBBY" C_RST "\n");
+        printf("  " C_BC "════════════════════════════════════════════" C_RST "\n");
+        printf("   " C_BR "●" C_RST " 플레이어 : " C_BY "%s" C_RST "\n", user);
+        printf("   " C_GR "◆" C_RST " GitHub   : " C_GR "%s" C_RST "\n", github);
+        printf("  " C_M "────────────────────────────────────────────" C_RST "\n");
+        printf("   " C_BG C_BOLD "[ 미니게임 · MINI-GAMES ]" C_RST "\n\n");
+        printf("    " C_BR "1)" C_RST " " C_BR C_BOLD "%-18s" C_RST C_GR "VI 던전 탐험 RPG" C_RST "\n",       "VI-RPG");
+        printf("    " C_BG "2)" C_RST " " C_BG C_BOLD "%-18s" C_RST C_GR "깃허브 다마고치" C_RST "\n",   "GitHub Tamagotchi");
+        printf("    " C_BM "3)" C_RST " " C_BM C_BOLD "%-18s" C_RST C_GR "실시간 테트리스" C_RST "\n",        "VI-TETRIS");
+        printf("    " C_BY "4)" C_RST " " C_BY C_BOLD "%-18s" C_RST C_GR "자원 경영 시뮬레이션" C_RST "\n",    "Factory-ism");
+        printf("    " C_BC "5)" C_RST " " C_BC C_BOLD "%-18s" C_RST C_GR "기사의 여행" C_RST "\n",            "Knight's Tour");
+        printf("  " C_M "────────────────────────────────────────────" C_RST "\n");
+        printf("    " C_BB "9)" C_RST " " C_W "순위표 (Leaderboard)" C_RST "\n");
+        printf("    " C_GR "0)" C_RST " " C_GR "로그아웃 (Logout)" C_RST "\n");
+        printf("  " C_BC "════════════════════════════════════════════" C_RST "\n");
+        printf("   " C_BY "▶ 선택 >" C_RST " ");
 
         char buf[16];
         read_line(buf, sizeof(buf));
         int sel = atoi(buf);
 
         if (sel == 0) {
-            printf("\n  [INFO] 로그아웃 되었습니다.\n");
+            printf("\n  " C_BC "[INFO]" C_RST " 로그아웃 되었습니다.\n");
             pause_enter();
             return;
         }
         else if(sel >= 1 && sel <= 5){
             clear_screen();
-            printf("\n  [System] Game%d 프로세스를 생성합니다...\n", sel);
+            printf("\n  " C_BG "[System]" C_RST " " C_BY "Game%d 프로세스를 생성합니다..." C_RST "\n", sel);
 
             // 부모와 자식 간의 "실행 실패"와 "최종 점수" 공유를 위한 파이프 생성
             int exec_pipe[2];
@@ -205,10 +234,10 @@ static void lobby_menu(const char *user, const char *github) {
 
                 // 자식이 execl 실패 신호(-1)를 남긴 경우: 게임 바이너리 누락
                 if (nbytes > 0 && received_data == -1) {
-                    printf("\n=========================================\n");
-                    printf("  [X] 게임 프로그램 파일을 실행할 수 없습니다.\n");
-                    printf("      scripts/build.sh 로 게임 바이너리를 먼저 생성하세요.\n");
-                    printf("=========================================\n");
+                    printf("\n  " C_BR "═════════════════════════════════════════" C_RST "\n");
+                    printf("  " C_BR "[X]" C_RST " 게임 프로그램 파일을 실행할 수 없습니다.\n");
+                    printf("      " C_GR "scripts/build.sh 로 게임 바이너리를 먼저 생성하세요." C_RST "\n");
+                    printf("  " C_BR "═════════════════════════════════════════" C_RST "\n");
                 }
                 else {
                     int game_score = -1;
@@ -225,21 +254,21 @@ static void lobby_menu(const char *user, const char *github) {
                     }
 
                     if (game_score >= 0) {
-                        printf("\n=========================================\n");
-                        printf("  [OK] 게임이 정상 종료되었습니다.\n");
-                        printf("  [Result] %s 님의 최종 점수 : %d 점\n", user, game_score);
-                        printf("=========================================\n");
+                        printf("\n  " C_BG "═════════════════════════════════════════" C_RST "\n");
+                        printf("  " C_BG C_BOLD "[OK]" C_RST " 게임이 정상 종료되었습니다." C_RST "\n");
+                        printf("  " C_BY "[Result]" C_RST " " C_BY "%s" C_RST " 님의 최종 점수 : " C_BG C_BOLD "%d 점" C_RST "\n", user, game_score);
+                        printf("  " C_BG "═════════════════════════════════════════" C_RST "\n");
 
                         save_high_score(sel, user, game_score);// 게임이 종료될 때 점수가 기존 최고점수를 넘겼으면 최고점수를 업데이트하는 함수(score.h에 포함)
                     } else if (WIFEXITED(status)) {
-                        printf("\n=========================================\n");
-                        printf("  [INFO] 게임이 종료되었습니다.\n");
-                        printf("=========================================\n");
+                        printf("\n  " C_BC "═════════════════════════════════════════" C_RST "\n");
+                        printf("  " C_BC "[INFO]" C_RST " 게임이 종료되었습니다.\n");
+                        printf("  " C_BC "═════════════════════════════════════════" C_RST "\n");
                     } else {
                         // 파이프에도 안 쓰고 정상 종료도 아님: 시그널 등으로 강제 소멸
-                        printf("\n=========================================\n");
-                        printf("  [X] 게임 프로세스가 비정상적으로 종료되었습니다.\n");
-                        printf("=========================================\n");
+                        printf("\n  " C_BR "═════════════════════════════════════════" C_RST "\n");
+                        printf("  " C_BR "[X]" C_RST " 게임 프로세스가 비정상적으로 종료되었습니다.\n");
+                        printf("  " C_BR "═════════════════════════════════════════" C_RST "\n");
                     }
                 }
             }
@@ -250,7 +279,7 @@ static void lobby_menu(const char *user, const char *github) {
             pause_enter();
         }
         else{
-            printf("\n  [X] 잘못된 선택입니다. 메뉴의 번호를 입력해 주세요.\n");
+            printf("\n  " C_BR "[X]" C_RST " 잘못된 선택입니다. 메뉴의 번호를 입력해 주세요.\n");
             pause_enter();
         }
     }
@@ -281,10 +310,10 @@ int main(void) {
             }
         }
         else {
-            printf("[X] 잘못된 선택입니다.\n");
+            printf("  " C_BR "[X]" C_RST " 잘못된 선택입니다.\n");
             pause_enter();
         }
     }
-    printf("\n프로그램을 종료합니다. 안녕히 가세요!\n");
+    printf("\n  " C_BY "프로그램을 종료합니다. 안녕히 가세요!" C_RST "\n\n");
     return 0;
 }
